@@ -1,0 +1,332 @@
+syntax = "proto3";
+
+package minicloud.controller.worker.v1;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+
+option cc_enable_arenas = true;
+
+// ControllerWorkerService is called by workers. The local Docker Compose profile
+// uses a bounded cluster credential on its private network. A non-local deployment
+// must additionally enable mutually authenticated TLS at the server/channel layer.
+// Image-registry secrets must never be placed in these messages.
+//
+// Every mutating request carries WorkerIdentity. worker_epoch fences a previous
+// process using the same worker_id, while controller_epoch fences commands issued
+// by a superseded controller. Command leases provide at-least-once delivery;
+// workers must make side effects idempotent. This worker uses a bounded
+// in-process command receipt cache and reconstructs safety after restart from
+// Docker ownership, epoch, revision, and spec-fingerprint labels.
+service ControllerWorkerService {
+  // RegisterWorker creates a new worker epoch for one process instance.
+  rpc RegisterWorker(RegisterWorkerRequest) returns (RegisterWorkerResponse);
+
+  // Heartbeat renews worker liveness and reports coarse resource usage.
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+
+  // PollCommands is a bounded poll. An empty response is normal.
+  rpc PollCommands(PollCommandsRequest) returns (PollCommandsResponse);
+
+  // CompleteCommand commits the outcome for one leased command. Retrying the
+  // same command_id and lease_token is idempotent.
+  rpc CompleteCommand(CompleteCommandRequest) returns (CompleteCommandResponse);
+
+  // ReportWorkloadStatus accepts a bounded batch. Stable report ids are durably
+  // deduplicated for the controller's advertised 24-hour receipt window.
+  rpc ReportWorkloadStatus(ReportWorkloadStatusRequest)
+      returns (ReportWorkloadStatusResponse);
+
+  // StreamLogs uploads ordered, bounded batches. A batch_id is deduplicated for
+  // the same 24-hour window as retained local logs.
+  rpc StreamLogs(stream LogBatch) returns (LogIngestSummary);
+}
+
+message ProtocolVersion {
+  uint32 major = 1;
+  uint32 minor = 2;
+}
+
+message ResourceQuantity {
+  uint64 cpu_millis = 1;
+  uint64 memory_bytes = 2;
+}
+
+message WorkerIdentity {
+  string worker_id = 1;
+  string instance_id = 2;
+  uint64 worker_epoch = 3;
+}
+
+message RegisterWorkerRequest {
+  string worker_id = 1;
+  string instance_id = 2;
+  ProtocolVersion protocol = 3;
+  ResourceQuantity capacity = 4;
+  map<string, string> labels = 5;
+  string agent_version = 6;
+}
+
+message RegisterWorkerResponse {
+  WorkerIdentity identity = 1;
+  uint64 controller_epoch = 2;
+  google.protobuf.Duration heartbeat_interval = 3;
+  google.protobuf.Duration command_poll_timeout = 4;
+  google.protobuf.Timestamp controller_time = 5;
+}
+
+message WorkerUsage {
+  ResourceQuantity reserved = 1;
+  ResourceQuantity observed = 2;
+  uint32 running_workloads = 3;
+}
+
+message HeartbeatRequest {
+  WorkerIdentity identity = 1;
+  uint64 sequence = 2;
+  WorkerUsage usage = 3;
+  google.protobuf.Timestamp observed_at = 4;
+  uint64 known_controller_epoch = 5;
+}
+
+message HeartbeatResponse {
+  enum Directive {
+    DIRECTIVE_UNSPECIFIED = 0;
+    DIRECTIVE_CONTINUE = 1;
+    DIRECTIVE_DRAIN = 2;
+    DIRECTIVE_REREGISTER = 3;
+  }
+
+  bool accepted = 1;
+  uint64 controller_epoch = 2;
+  Directive directive = 3;
+  google.protobuf.Duration next_heartbeat_after = 4;
+}
+
+message PollCommandsRequest {
+  WorkerIdentity identity = 1;
+  uint64 known_controller_epoch = 2;
+  uint32 max_commands = 3;
+  google.protobuf.Duration wait_timeout = 4;
+}
+
+message PollCommandsResponse {
+  uint64 controller_epoch = 1;
+  repeated LeasedCommand commands = 2;
+}
+
+message WorkloadRef {
+  string workload_id = 1;
+  string allocation_id = 2;
+  uint32 replica_index = 3;
+  uint64 workload_generation = 4;
+  uint64 allocation_revision = 5;
+  uint64 controller_epoch = 6;
+}
+
+message EnvironmentVariable {
+  string name = 1;
+
+  oneof source {
+    string value = 2;
+    SecretReference secret = 3;
+  }
+}
+
+message SecretReference {
+  // Provider-specific secret values remain outside the control-plane database.
+  string provider = 1;
+  string name = 2;
+  string key = 3;
+}
+
+message PortSpec {
+  string name = 1;
+  uint32 container_port = 2;
+  string protocol = 3;
+}
+
+message HealthCheck {
+  enum Kind {
+    KIND_UNSPECIFIED = 0;
+    KIND_HTTP = 1;
+    KIND_TCP = 2;
+  }
+
+  Kind kind = 1;
+  string path = 2;
+  string port_name = 3;
+  google.protobuf.Duration interval = 4;
+  google.protobuf.Duration timeout = 5;
+  uint32 success_threshold = 6;
+  uint32 failure_threshold = 7;
+}
+
+message ContainerSpec {
+  // Production callers should use an immutable digest, for example
+  // registry.example/app@sha256:..., rather than a mutable tag.
+  string image_reference = 1;
+  repeated string command = 2;
+  repeated string arguments = 3;
+  repeated EnvironmentVariable environment = 4;
+  string working_directory = 5;
+  repeated PortSpec ports = 6;
+  bool read_only_root_filesystem = 7;
+  bool run_as_non_root = 8;
+}
+
+message WorkloadSpec {
+  WorkloadRef ref = 1;
+  ContainerSpec container = 2;
+  ResourceQuantity resources = 3;
+  map<string, string> required_node_labels = 4;
+  string anti_affinity_group = 5;
+  HealthCheck readiness_check = 6;
+  HealthCheck liveness_check = 7;
+  google.protobuf.Duration termination_grace_period = 8;
+}
+
+message EnsureWorkload {
+  WorkloadSpec workload = 1;
+}
+
+message StopWorkload {
+  WorkloadRef ref = 1;
+  google.protobuf.Duration grace_period = 2;
+  string reason = 3;
+}
+
+message Command {
+  string command_id = 1;
+  uint64 controller_epoch = 2;
+  google.protobuf.Timestamp created_at = 3;
+
+  oneof operation {
+    EnsureWorkload ensure_workload = 20;
+    StopWorkload stop_workload = 21;
+  }
+
+  reserved 4 to 19;
+}
+
+message LeasedCommand {
+  Command command = 1;
+  string lease_token = 2;
+  google.protobuf.Timestamp lease_expires_at = 3;
+  uint32 delivery_attempt = 4;
+}
+
+message CommandResult {
+  string runtime_id = 1;
+  optional int32 exit_code = 2;
+  map<string, string> details = 3;
+}
+
+message CompleteCommandRequest {
+  WorkerIdentity identity = 1;
+  string command_id = 2;
+  string lease_token = 3;
+  bool succeeded = 4;
+  bool retryable = 5;
+  string error_code = 6;
+  string error_message = 7;
+  CommandResult result = 8;
+  google.protobuf.Timestamp completed_at = 9;
+  uint64 controller_epoch = 10;
+}
+
+message CompleteCommandResponse {
+  enum Disposition {
+    DISPOSITION_UNSPECIFIED = 0;
+    DISPOSITION_COMMITTED = 1;
+    DISPOSITION_ALREADY_COMMITTED = 2;
+    DISPOSITION_STALE_LEASE = 3;
+    DISPOSITION_FENCED = 4;
+  }
+
+  Disposition disposition = 1;
+}
+
+enum RuntimeState {
+  RUNTIME_STATE_UNSPECIFIED = 0;
+  RUNTIME_STATE_PENDING = 1;
+  RUNTIME_STATE_STARTING = 2;
+  RUNTIME_STATE_RUNNING = 3;
+  RUNTIME_STATE_STOPPING = 4;
+  RUNTIME_STATE_STOPPED = 5;
+  RUNTIME_STATE_FAILED = 6;
+}
+
+message EndpointStatus {
+  string host = 1;
+  uint32 port = 2;
+  string scheme = 3;
+  bool ready = 4;
+  uint64 endpoint_revision = 5;
+}
+
+message WorkloadStatusReport {
+  // report_id must be stable across retries and unique for different observations.
+  string report_id = 1;
+  WorkloadRef ref = 2;
+  RuntimeState state = 3;
+  bool ready = 4;
+  uint32 restart_count = 5;
+  optional int32 last_exit_code = 6;
+  string reason_code = 7;
+  string message = 8;
+  EndpointStatus endpoint = 9;
+  google.protobuf.Timestamp observed_at = 10;
+  string runtime_id = 11;
+}
+
+message ReportWorkloadStatusRequest {
+  WorkerIdentity identity = 1;
+  repeated WorkloadStatusReport reports = 2;
+}
+
+message StatusReceipt {
+  enum Disposition {
+    DISPOSITION_UNSPECIFIED = 0;
+    DISPOSITION_ACCEPTED = 1;
+    DISPOSITION_DUPLICATE = 2;
+    DISPOSITION_STALE_REVISION = 3;
+    DISPOSITION_FENCED = 4;
+    DISPOSITION_UNKNOWN_ALLOCATION = 5;
+  }
+
+  string report_id = 1;
+  Disposition disposition = 2;
+}
+
+message ReportWorkloadStatusResponse {
+  repeated StatusReceipt receipts = 1;
+}
+
+enum LogStream {
+  LOG_STREAM_UNSPECIFIED = 0;
+  LOG_STREAM_STDOUT = 1;
+  LOG_STREAM_STDERR = 2;
+}
+
+message LogRecord {
+  uint64 sequence = 1;
+  google.protobuf.Timestamp observed_at = 2;
+  LogStream stream = 3;
+  bytes payload = 4;
+  bool truncated = 5;
+}
+
+message LogBatch {
+  WorkerIdentity identity = 1;
+  WorkloadRef ref = 2;
+  string batch_id = 3;
+  repeated LogRecord records = 4;
+}
+
+message LogIngestSummary {
+  uint64 accepted_records = 1;
+  uint64 duplicate_records = 2;
+  uint64 rejected_records = 3;
+  map<string, uint64> next_sequence_by_allocation = 4;
+}

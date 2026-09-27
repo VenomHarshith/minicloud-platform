@@ -1,0 +1,11 @@
+/build/
+/dist/
+/dashboard/dist/
+/dashboard/node_modules/
+/deploy/.env
+/.cache/
+*.log
+.DS_Store
+.vs/
+.vscode/.ropeproject/
+out/

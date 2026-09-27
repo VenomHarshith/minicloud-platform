@@ -1,0 +1,178 @@
+name: minicloud
+
+x-platform-build: &platform-build
+  context: ..
+  dockerfile: Dockerfile
+
+x-platform-environment: &platform-environment
+  MINICLOUD_DATABASE_URL: postgresql://minicloud:${MINICLOUD_DB_PASSWORD:?run the MiniCloud credential initializer}@postgres:5432/minicloud
+  MINICLOUD_VALKEY_URL: redis://valkey:6379/0
+  MINICLOUD_GRPC_TARGET: controller:50051
+  MINICLOUD_CLUSTER_TOKEN: ${MINICLOUD_CLUSTER_TOKEN:?run the MiniCloud credential initializer}
+
+services:
+  postgres:
+    image: postgres:18.0-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: minicloud
+      POSTGRES_USER: minicloud
+      POSTGRES_PASSWORD: ${MINICLOUD_DB_PASSWORD:?run the MiniCloud credential initializer}
+    volumes:
+      - postgres-data:/var/lib/postgresql
+      - ../database/migrations:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U minicloud -d minicloud']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    networks: [control]
+
+  valkey:
+    image: valkey/valkey:9.1.2-alpine
+    restart: unless-stopped
+    command: ['valkey-server', '--save', '', '--appendonly', 'no']
+    healthcheck:
+      test: ['CMD', 'valkey-cli', 'ping']
+      interval: 3s
+      timeout: 2s
+      retries: 20
+    networks: [control]
+
+  controller:
+    build:
+      <<: *platform-build
+      target: controller
+    restart: unless-stopped
+    environment:
+      <<: *platform-environment
+      MINICLOUD_HTTP_BIND: 0.0.0.0:8090
+      MINICLOUD_GRPC_BIND: 0.0.0.0:50051
+      MINICLOUD_METRICS_BIND: 0.0.0.0:9091
+      MINICLOUD_RECONCILE_INTERVAL_MS: 1000
+      MINICLOUD_API_TOKEN: ${MINICLOUD_API_TOKEN:?run the MiniCloud credential initializer}
+    depends_on:
+      postgres: { condition: service_healthy }
+      valkey: { condition: service_healthy }
+    healthcheck:
+      test: ['CMD', 'curl', '--fail', '--silent', 'http://127.0.0.1:8090/health']
+      interval: 3s
+      timeout: 2s
+      retries: 30
+    ports:
+      - '127.0.0.1:8090:8090'
+      - '127.0.0.1:50051:50051'
+    networks: [control]
+
+  worker-a:
+    build:
+      <<: *platform-build
+      target: worker
+    restart: unless-stopped
+    environment:
+      <<: *platform-environment
+      MINICLOUD_NODE_NAME: worker-a
+      MINICLOUD_NODE_CPU_MILLIS: 4000
+      MINICLOUD_NODE_MEMORY_MB: 4096
+      MINICLOUD_NODE_LABELS: zone=local-a,arch=${MINICLOUD_ARCH:?run the MiniCloud credential initializer}
+      MINICLOUD_DOCKER_ENDPOINT: ${MINICLOUD_DOCKER_ENDPOINT:-unix:///var/run/docker.sock}
+      MINICLOUD_WORKLOAD_NETWORK: minicloud-workloads
+      MINICLOUD_METRICS_BIND: 0.0.0.0:9101
+    volumes:
+      - ${MINICLOUD_DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock
+    depends_on:
+      controller: { condition: service_healthy }
+    networks: [control]
+
+  worker-b:
+    build:
+      <<: *platform-build
+      target: worker
+    restart: unless-stopped
+    environment:
+      <<: *platform-environment
+      MINICLOUD_NODE_NAME: worker-b
+      MINICLOUD_NODE_CPU_MILLIS: 4000
+      MINICLOUD_NODE_MEMORY_MB: 4096
+      MINICLOUD_NODE_LABELS: zone=local-b,arch=${MINICLOUD_ARCH:?run the MiniCloud credential initializer}
+      MINICLOUD_DOCKER_ENDPOINT: ${MINICLOUD_DOCKER_ENDPOINT:-unix:///var/run/docker.sock}
+      MINICLOUD_WORKLOAD_NETWORK: minicloud-workloads
+      MINICLOUD_METRICS_BIND: 0.0.0.0:9101
+    volumes:
+      - ${MINICLOUD_DOCKER_SOCKET:-/var/run/docker.sock}:/var/run/docker.sock
+    depends_on:
+      controller: { condition: service_healthy }
+    networks: [control]
+
+  gateway:
+    build:
+      <<: *platform-build
+      target: gateway
+    restart: unless-stopped
+    environment:
+      MINICLOUD_VALKEY_URL: redis://valkey:6379/0
+      MINICLOUD_GATEWAY_BIND: 0.0.0.0:8080
+      MINICLOUD_METRICS_BIND: 0.0.0.0:9092
+    depends_on:
+      valkey: { condition: service_healthy }
+    healthcheck:
+      test: ['CMD', 'curl', '--fail', '--silent', 'http://127.0.0.1:8080/health']
+      interval: 3s
+      timeout: 2s
+      retries: 30
+    ports:
+      - '127.0.0.1:8080:8080'
+    networks: [control, workloads]
+
+  dashboard:
+    build:
+      context: ../dashboard
+    restart: unless-stopped
+    environment:
+      MINICLOUD_API_TOKEN: ${MINICLOUD_API_TOKEN:?run the MiniCloud credential initializer}
+    depends_on:
+      controller: { condition: service_healthy }
+    ports:
+      - '127.0.0.1:3000:8080'
+    networks: [control]
+
+  cli:
+    profiles: ['tools']
+    build:
+      <<: *platform-build
+      target: cli
+    environment:
+      MINICLOUD_API_URL: http://controller:8090
+      MINICLOUD_API_TOKEN: ${MINICLOUD_API_TOKEN:?run the MiniCloud credential initializer}
+    volumes:
+      - ../examples:/workspace/examples:ro
+    working_dir: /workspace
+    depends_on:
+      controller: { condition: service_healthy }
+    networks: [control]
+
+  prometheus:
+    image: prom/prometheus:v3.6.0
+    restart: unless-stopped
+    command: ['--config.file=/etc/prometheus/prometheus.yml', '--storage.tsdb.path=/prometheus']
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    depends_on:
+      - controller
+      - gateway
+      - worker-a
+      - worker-b
+    ports:
+      - '127.0.0.1:9090:9090'
+    networks: [control]
+
+networks:
+  control:
+    internal: false
+  workloads:
+    name: minicloud-workloads
+
+volumes:
+  postgres-data:
+  prometheus-data:

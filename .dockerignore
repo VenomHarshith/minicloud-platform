@@ -1,0 +1,13 @@
+.git
+.github
+.vscode
+build
+dashboard
+deploy
+docs
+examples
+learning
+information-pack
+dist
+*.md
+deploy/.env

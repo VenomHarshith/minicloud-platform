@@ -1,0 +1,9 @@
+{
+  "name": "echo-api",
+  "image": "minicloud/echo-service:dev",
+  "replicas": 2,
+  "cpuMillis": 200,
+  "memoryMb": 128,
+  "containerPort": 8080,
+  "healthPath": "/health"
+}

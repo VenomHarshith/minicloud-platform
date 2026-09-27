@@ -1,0 +1,184 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "MiniCloud: Verify Docker",
+      "type": "shell",
+      "command": "docker version && docker compose version",
+      "windows": {
+        "command": "cmd.exe",
+        "args": ["/d", "/c", "docker version && docker compose version"]
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "MiniCloud: Validate Compose",
+      "type": "shell",
+      "command": "docker compose --env-file deploy/.env.example -f deploy/compose.yaml config --quiet",
+      "windows": {
+        "command": "cmd.exe",
+        "args": [
+          "/d",
+          "/c",
+          "docker compose --env-file deploy/.env.example -f deploy/compose.yaml -f deploy/compose.desktop.yaml config --quiet"
+        ]
+      },
+      "problemMatcher": [],
+      "group": "test"
+    },
+    {
+      "label": "MiniCloud: Initialize credentials (once)",
+      "type": "shell",
+      "command": "./deploy/scripts/initialize-minicloud.sh",
+      "windows": {
+        "command": "powershell.exe",
+        "args": [
+          "-NoLogo",
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          ".\\deploy\\powershell\\Initialize-MiniCloud.ps1"
+        ]
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "MiniCloud: Start platform",
+      "type": "shell",
+      "command": "make",
+      "args": ["up"],
+      "osx": {
+        "args": ["up-desktop"]
+      },
+      "windows": {
+        "command": "powershell.exe",
+        "args": [
+          "-NoLogo",
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          ".\\scripts\\windows\\Start-MiniCloud.ps1"
+        ]
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "MiniCloud: Show platform status",
+      "type": "shell",
+      "command": "docker compose --env-file deploy/.env -f deploy/compose.yaml ps",
+      "problemMatcher": []
+    },
+    {
+      "label": "MiniCloud: Follow platform logs",
+      "type": "shell",
+      "command": "docker compose --env-file deploy/.env -f deploy/compose.yaml logs --follow --tail=200",
+      "problemMatcher": []
+    },
+    {
+      "label": "MiniCloud: Run full E2E demo",
+      "type": "shell",
+      "command": "./scripts/e2e.sh",
+      "windows": {
+        "command": "powershell.exe",
+        "args": [
+          "-NoLogo",
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          ".\\scripts\\windows\\Deploy-Echo.ps1"
+        ]
+      },
+      "problemMatcher": [],
+      "group": "test"
+    },
+    {
+      "label": "MiniCloud: Stop platform",
+      "type": "shell",
+      "command": "make",
+      "args": ["down"],
+      "windows": {
+        "command": "powershell.exe",
+        "args": [
+          "-NoLogo",
+          "-NoProfile",
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          ".\\scripts\\windows\\Stop-MiniCloud.ps1"
+        ]
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "MiniCloud: Dashboard install",
+      "type": "shell",
+      "command": "npm install --no-audit --no-fund",
+      "options": {
+        "cwd": "${workspaceFolder}/dashboard"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "MiniCloud: Dashboard build",
+      "type": "shell",
+      "command": "npm run build",
+      "options": {
+        "cwd": "${workspaceFolder}/dashboard"
+      },
+      "dependsOn": "MiniCloud: Dashboard install",
+      "dependsOrder": "sequence",
+      "problemMatcher": ["$tsc"],
+      "group": "build"
+    },
+    {
+      "label": "MiniCloud: Dashboard dev server",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": {
+        "cwd": "${workspaceFolder}/dashboard"
+      },
+      "dependsOn": "MiniCloud: Dashboard install",
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
+      "label": "MiniCloud: Native configure",
+      "type": "shell",
+      "command": "cmake --preset dev",
+      "windows": {
+        "command": "cmake",
+        "args": ["--preset", "windows-dev"]
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "MiniCloud: Native build",
+      "type": "shell",
+      "command": "cmake --build --preset dev",
+      "windows": {
+        "command": "cmake",
+        "args": ["--build", "--preset", "windows-dev"]
+      },
+      "dependsOn": "MiniCloud: Native configure",
+      "dependsOrder": "sequence",
+      "problemMatcher": ["$gcc", "$msCompile"],
+      "group": "build"
+    },
+    {
+      "label": "MiniCloud: Native test",
+      "type": "shell",
+      "command": "ctest --preset dev",
+      "windows": {
+        "command": "ctest",
+        "args": ["--preset", "windows-dev"]
+      },
+      "dependsOn": "MiniCloud: Native build",
+      "dependsOrder": "sequence",
+      "problemMatcher": [],
+      "group": "test"
+    }
+  ]
+}

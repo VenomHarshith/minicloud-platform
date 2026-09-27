@@ -1,0 +1,14 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: minicloud-controller
+    static_configs:
+      - targets: ['controller:9091']
+  - job_name: minicloud-gateway
+    static_configs:
+      - targets: ['gateway:9092']
+  - job_name: minicloud-workers
+    static_configs:
+      - targets: ['worker-a:9101', 'worker-b:9101']

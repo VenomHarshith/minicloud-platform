@@ -1,0 +1,192 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  repository-contract:
+    name: Repository and documentation contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Validate JSON, documentation links, and clean-room hygiene
+        run: python3 scripts/check_repository.py
+
+      - name: Parse POSIX automation
+        run: >-
+          sh -n
+          deploy/scripts/initialize-minicloud.sh
+          scripts/check.sh
+          scripts/e2e.sh
+          scripts/package-release.sh
+          scripts/stop.sh
+
+  portable-core:
+    name: Portable core (${{ matrix.toolchain }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            toolchain: GCC
+            compiler: g++
+          - os: macos-latest
+            toolchain: Clang
+            compiler: clang++
+          - os: windows-latest
+            toolchain: MSVC
+            compiler: cl
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Compile and run portable core tests
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/portable-core
+          "${{ matrix.compiler }}" \
+            -std=c++20 \
+            -Wall -Wextra -Wpedantic -Wconversion -Wsign-conversion -Wshadow \
+            -Icpp/include \
+            cpp/core/domain.cpp \
+            cpp/core/scheduler.cpp \
+            cpp/core/reconciler.cpp \
+            tests/cpp/core_tests.cpp \
+            -o build/portable-core/minicloud-core-tests
+          ./build/portable-core/minicloud-core-tests
+
+      - name: Compile and run portable core tests
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          @echo on
+          for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VSINSTALL=%%i"
+          if not defined VSINSTALL exit /b 1
+          call "%VSINSTALL%\Common7\Tools\VsDevCmd.bat" -no_logo -arch=amd64
+          if errorlevel 1 exit /b 1
+          if not exist build\portable-core mkdir build\portable-core
+          pushd build\portable-core
+          cl.exe /nologo /std:c++20 /EHsc /W4 /permissive- /D_WIN32_WINNT=0x0A00 /DNOMINMAX /DWIN32_LEAN_AND_MEAN /I..\..\cpp\include ..\..\cpp\core\domain.cpp ..\..\cpp\core\scheduler.cpp ..\..\cpp\core\reconciler.cpp ..\..\tests\cpp\core_tests.cpp /Fe:minicloud-core-tests.exe
+          if errorlevel 1 exit /b 1
+          minicloud-core-tests.exe
+          if errorlevel 1 exit /b 1
+          popd
+
+  dashboard:
+    name: Dashboard production build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: dashboard
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Install dashboard dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Build dashboard
+        run: npm run build
+
+      - name: Verify dashboard output
+        run: test -f dist/index.html
+
+  compose-validation:
+    name: Validate Compose definitions
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Show Docker Compose version
+        run: docker compose version
+
+      - name: Validate Linux Compose model
+        run: >-
+          docker compose
+          --env-file deploy/.env.example
+          -f deploy/compose.yaml
+          config --quiet
+
+      - name: Validate Docker Desktop Compose model
+        run: >-
+          docker compose
+          --env-file deploy/.env.example
+          -f deploy/compose.yaml
+          -f deploy/compose.desktop.yaml
+          config --quiet
+
+  docker-e2e:
+    name: Docker image and full end-to-end test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    needs:
+      - dashboard
+      - compose-validation
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Show Docker versions
+        run: |
+          docker version
+          docker compose version
+
+      - name: Generate ephemeral CI credentials
+        run: ./deploy/scripts/initialize-minicloud.sh
+
+      - name: Build the C++ CLI image and run containerized C++ tests
+        run: docker build --tag minicloud/cli:ci .
+
+      - name: Run the full platform and real workload proof
+        run: ./scripts/e2e.sh
+
+      - name: Print diagnostics after failure
+        if: failure()
+        run: |
+          docker compose --env-file deploy/.env -f deploy/compose.yaml ps --all || true
+          docker compose --env-file deploy/.env -f deploy/compose.yaml logs --no-color --tail=300 || true
+          docker ps --all || true
+
+      - name: Stop containers and remove ephemeral CI state
+        if: always()
+        run: |
+          if [ -f deploy/.env ]; then
+            docker compose --env-file deploy/.env -f deploy/compose.yaml stop --timeout 10 || true
+            docker ps --all --quiet --filter label=io.minicloud.managed=true \
+              | xargs --no-run-if-empty docker rm --force
+            docker compose --env-file deploy/.env -f deploy/compose.yaml \
+              down --volumes --remove-orphans --timeout 10 || true
+          fi
+          docker network rm minicloud-workloads 2>/dev/null || true

@@ -1,0 +1,19 @@
+{
+  "cmake.useCMakePresets": "always",
+  "cmake.configureOnOpen": false,
+  "cmake.sourceDirectory": "${workspaceFolder}",
+  "C_Cpp.default.configurationProvider": "ms-vscode.cmake-tools",
+  "C_Cpp.default.cppStandard": "c++20",
+  "npm.packageManager": "npm",
+  "terminal.integrated.cwd": "${workspaceFolder}",
+  "files.watcherExclude": {
+    "**/build/**": true,
+    "**/dashboard/dist/**": true,
+    "**/dashboard/node_modules/**": true
+  },
+  "search.exclude": {
+    "**/build/**": true,
+    "**/dashboard/dist/**": true,
+    "**/dashboard/node_modules/**": true
+  }
+}

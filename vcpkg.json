@@ -1,0 +1,14 @@
+{
+  "name": "minicloud-platform",
+  "version-semver": "0.1.0",
+  "description": "Cross-platform mini container orchestration platform",
+  "dependencies": [
+    "boost-system",
+    "curl",
+    "grpc",
+    "hiredis",
+    "libpqxx",
+    "nlohmann-json",
+    "protobuf"
+  ]
+}
