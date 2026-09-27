@@ -1,4 +1,4 @@
-FROM python:3.13.7-alpine3.22
+FROM python:3.14.5-alpine3.22
 RUN addgroup -S app && adduser -S -G app -u 10001 app
 WORKDIR /app
 COPY --chown=app:app app.py ./app.py
