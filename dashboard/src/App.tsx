@@ -190,7 +190,7 @@ export default function App() {
           <div className="panel-heading"><div><p className="eyebrow">Observed state</p><h2>Allocations</h2></div></div>
           <div className="allocations">
             {snapshot?.services.flatMap((service) => (grouped.get(service.name) ?? []).map((allocation) => <article key={allocation.id}>
-              <div><strong>{allocation.serviceName}-{allocation.replica}</strong><small className="mono">{allocation.containerId?.slice(0, 12) ?? 'not created'}</small></div>
+              <div><strong>{allocation.serviceName}-{allocation.replica}</strong><small className="mono">{publicDemo ? 'runtime protected' : (allocation.containerId?.slice(0, 12) ?? 'not created')}</small></div>
               <StateBadge state={allocation.state} />
               <div><small>Node</small><span>{allocation.nodeName ?? 'unscheduled'}</span></div>
               <div><small>Endpoint</small><span className="mono">{allocation.endpoint ?? '—'}</span></div>
