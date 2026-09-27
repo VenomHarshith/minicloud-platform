@@ -148,9 +148,9 @@ void Repository::verify_schema() {
 std::int64_t Repository::acquire_controller_epoch() {
   std::lock_guard lock(implementation_->mutex_);
   pqxx::work transaction(implementation_->connection_);
-  const auto lock = transaction.exec(
+  const auto lease_rows = transaction.exec(
       "SELECT pg_try_advisory_lock(1296646991,1) AS acquired");
-  if (lock.empty() || !lock.front()["acquired"].as<bool>()) {
+  if (lease_rows.empty() || !lease_rows.front()["acquired"].as<bool>()) {
     throw std::runtime_error("another controller currently owns the control-plane lease");
   }
   const auto rows = transaction.exec(
@@ -377,7 +377,7 @@ std::vector<CommandRecord> Repository::claim_commands(
       node_id, static_cast<int>(std::min<std::size_t>(limit, 32)), instance_id,
       lease_token, lease_seconds);
   std::vector<CommandRecord> commands;
-  commands.reserve(rows.size());
+  commands.reserve(static_cast<std::size_t>(rows.size()));
   for (const auto& row : rows) {
     commands.push_back(CommandRecord{
         row["command_id"].as<std::string>(), row["allocation_id"].as<std::string>(),
@@ -550,7 +550,7 @@ Repository::ReconcileResult Repository::reconcile(const std::int32_t heartbeat_t
       "UPDATE nodes SET status='not_ready',updated_at=now() WHERE status='ready' AND "
       "last_heartbeat < now()-make_interval(secs=>$1) RETURNING node_id,name",
       heartbeat_timeout_seconds);
-  result.nodes_expired = expired.size();
+  result.nodes_expired = static_cast<std::size_t>(expired.size());
   for (const auto& node : expired) {
     append_event(transaction, "node.expired", node["node_id"].as<std::string>(),
                  "worker heartbeat expired", {{"name", node["name"].as<std::string>()}});
