@@ -95,8 +95,8 @@ std::optional<std::string> state_name(const protocol::RuntimeState state) {
     case protocol::RUNTIME_STATE_STOPPED: return "stopped";
     case protocol::RUNTIME_STATE_FAILED: return "failed";
     case protocol::RUNTIME_STATE_UNSPECIFIED: return std::nullopt;
+    default: return std::nullopt;
   }
-  return std::nullopt;
 }
 
 void set_duration(google::protobuf::Duration* duration, const std::int64_t seconds) {

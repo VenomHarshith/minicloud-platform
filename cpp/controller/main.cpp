@@ -61,7 +61,7 @@ int main() {
     controller::ControllerGrpcService grpc_service(
         repository, valkey, metrics,
         common::Environment::required("MINICLOUD_CLUSTER_TOKEN"), controller_epoch);
-    controller::GrpcServer grpc_server(address_text(grpc_bind), grpc_service);
+    controller::GrpcServer controller_grpc_server(address_text(grpc_bind), grpc_service);
 
     common::HttpServer api_server(http_bind, [&](const common::HttpRequest& request) {
       return api.handle(request);
@@ -101,7 +101,7 @@ int main() {
     const auto stop_and_join = [&] {
       asynchronous_stop_requested.store(true, std::memory_order_release);
       stop_condition.notify_all();
-      grpc_server.stop();
+      controller_grpc_server.stop();
       api_server.stop();
       metrics_server.stop();
       if (reconciler_thread.joinable()) reconciler_thread.join();
@@ -112,7 +112,7 @@ int main() {
     try {
       api_thread = std::thread([&] { guarded([&] { api_server.start(); }); });
       metrics_thread = std::thread([&] { guarded([&] { metrics_server.start(); }); });
-      grpc_thread = std::thread([&] { guarded([&] { grpc_server.run(); }); });
+      grpc_thread = std::thread([&] { guarded([&] { controller_grpc_server.run(); }); });
       reconciler_thread = std::thread([&] {
         guarded([&] {
           while (!should_stop()) {
