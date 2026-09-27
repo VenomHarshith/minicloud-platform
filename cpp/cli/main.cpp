@@ -86,7 +86,10 @@ std::string read_json_file(const std::filesystem::path& path) {
   std::ostringstream output;
   output << input.rdbuf();
   const std::string text = output.str();
-  (void)nlohmann::json::parse(text);
+  const auto document = nlohmann::json::parse(text);
+  if (!document.is_object()) {
+    throw std::runtime_error("deployment input must contain a JSON object");
+  }
   return text;
 }
 
