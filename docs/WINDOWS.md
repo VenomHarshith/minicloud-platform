@@ -123,3 +123,16 @@ Stop without deleting volumes:
 The script stops and removes only MiniCloud-labeled containers on the
 `minicloud-workloads` network before bringing down Compose. This lets Docker
 remove the network while preserving PostgreSQL and Prometheus named volumes.
+
+## Share a read-only public observer
+
+Do not expose the dashboard created by `Start-MiniCloud.ps1`; it is the private
+administrative build. The safe public path requires the desktop and public
+Compose overlays in that order and publishes only a sanitized snapshot through
+a temporary tunnel. Follow the PowerShell procedure and checks in
+[PUBLIC_OBSERVER.md](PUBLIC_OBSERVER.md).
+
+While that tunnel is open, do not rerun `Start-MiniCloud.ps1` or another start
+command that omits `compose.public.yaml`. Close public access first. The public
+overlay's worker-only Podman SELinux option also requires a live validation on
+the target Docker Desktop installation before the URL is shared.

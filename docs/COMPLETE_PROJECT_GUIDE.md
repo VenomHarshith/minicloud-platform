@@ -269,6 +269,12 @@ also proxies `/api/` to the controller and injects the generated API bearer
 token, so the token is not embedded in browser JavaScript. The UI currently has
 no delete button, but deletion is available through the CLI and REST API.
 
+That default dashboard is an administrative interface and must remain private.
+The optional public-observer build uses a different Nginx configuration and a
+sanitizing facade: only the live snapshot allowlist is public, and mutation,
+logs, raw identities, endpoints, errors, and private configuration remain
+closed. See [PUBLIC_OBSERVER.md](PUBLIC_OBSERVER.md) before sharing any URL.
+
 ### Prometheus
 
 Prometheus scrapes controller, gateway, and both workers every five seconds. It
@@ -1372,6 +1378,13 @@ MiniCloud requires a Docker daemon, C++ controller and workers, PostgreSQL,
 Valkey, live workload containers, and Prometheus. Publishing only the dashboard
 would omit the orchestrator and would be misleading.
 
+The checked-in public-observer overlay is a different boundary: it publishes a
+sanitized read-only view backed by the actual running controller. A free
+Cloudflare Quick Tunnel can provide a temporary random HTTPS URL while the host
+remains online. It does not expose the administrative tool or workloads and has
+no uptime guarantee. Exact commands and cost/security limits are in
+[PUBLIC_OBSERVER.md](PUBLIC_OBSERVER.md).
+
 ### Running the actual product online
 
 The real platform must run on a Windows/macOS/Linux machine with Docker. A
@@ -1380,11 +1393,13 @@ be reached through a private network or VPN and hardened first. An always-on
 general cloud VM can run it, but that compute commonly costs money. Codespaces
 has personal quotas and becomes metered after those quotas.
 
-Before any internet-facing deployment, the project needs at least mTLS worker
-identity, authenticated TLS at the edge, private Docker endpoints, firewalling,
-backup/restore, external secret management, controller high availability,
-signed/scanned image admission, quotas, rate limiting, and a real incident
-runbook. The default Compose ports must not simply be changed to `0.0.0.0`.
+Before an **interactive** internet-facing deployment, the project needs at
+least authenticated users/roles, mTLS worker identity, authenticated TLS at the
+edge, private Docker endpoints, firewalling, backup/restore, external secret
+management, controller high availability, signed/scanned image admission,
+quotas, rate limiting, and a real incident runbook. The default Compose ports
+must not simply be changed to `0.0.0.0`; the read-only observer is not a
+substitute for those controls.
 
 MiniCloud never creates a paid resource automatically. Provider, security,
 shutdown policy, and spending limit require an explicit operator decision.

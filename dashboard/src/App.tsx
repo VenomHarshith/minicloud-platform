@@ -2,6 +2,8 @@ import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from 're
 import { api } from './api'
 import type { Allocation, CreateService, Service, Snapshot } from './types'
 
+const publicDemo = import.meta.env.VITE_PUBLIC_DEMO === 'true'
+
 const emptyDeploy: CreateService = {
   name: '',
   image: '',
@@ -118,16 +120,18 @@ export default function App() {
           <a href="#services">Services</a>
           <a href="#nodes">Worker nodes</a>
           <a href="#activity">Activity</a>
-          <a href="http://127.0.0.1:9090" target="_blank" rel="noreferrer">Prometheus ↗</a>
+          {!publicDemo && <a href="http://127.0.0.1:9090" target="_blank" rel="noreferrer">Prometheus ↗</a>}
         </nav>
-        <div className="runtime-status"><span className={health?.healthy ? 'pulse' : 'pulse offline'} /> <div><strong>{health?.healthy ? 'Control plane healthy' : 'Connecting…'}</strong><small>auto-refresh · 3 seconds</small></div></div>
+        <div className="runtime-status"><span className={health?.healthy ? 'pulse' : 'pulse offline'} /> <div><strong>{health?.healthy ? 'Control plane healthy' : 'Connecting…'}</strong><small>{publicDemo ? 'public observer · read only' : 'auto-refresh · 3 seconds'}</small></div></div>
       </aside>
 
       <main>
         <header>
-          <div><p className="eyebrow">Operations console</p><h1>Cluster overview</h1><p>Desired state, placement, and live container health.</p></div>
-          <button className="primary" onClick={() => setDeployOpen(true)}>+ Deploy service</button>
+          <div><p className="eyebrow">{publicDemo ? 'Public live observer' : 'Operations console'}</p><h1>Cluster overview</h1><p>Desired state, placement, and live container health.</p></div>
+          {!publicDemo && <button className="primary" onClick={() => setDeployOpen(true)}>+ Deploy service</button>}
         </header>
+
+        {publicDemo && <div className="public-notice"><strong>Live, sanitized and read-only.</strong><span>This view is backed by the real MiniCloud control plane. Administrative actions, logs, internal identifiers, endpoints and secrets are not exposed.</span></div>}
 
         {error && <div className="alert" role="alert"><strong>Platform unavailable.</strong> {error}<button onClick={() => void refresh()}>Retry</button></div>}
 
@@ -151,10 +155,10 @@ export default function App() {
                     <td><span className={service.readyReplicas === service.desiredReplicas ? 'ready-count' : 'pending-count'}>{service.readyReplicas}</span> / {service.desiredReplicas}</td>
                     <td><small>{service.cpuMillis}m CPU · {service.memoryMb} MiB</small></td>
                     <td>v{service.generation}</td>
-                    <td><div className="actions"><button disabled={busy} onClick={() => void act(() => api.scaleService(service.name, service.desiredReplicas + 1))}>+1</button><button disabled={busy || service.desiredReplicas === 0} onClick={() => void act(() => api.scaleService(service.name, service.desiredReplicas - 1))}>−1</button><button disabled={busy} onClick={() => void act(() => api.restartService(service.name))}>Restart</button></div></td>
+                    <td>{publicDemo ? <span className="read-only">Read only</span> : <div className="actions"><button disabled={busy} onClick={() => void act(() => api.scaleService(service.name, service.desiredReplicas + 1))}>+1</button><button disabled={busy || service.desiredReplicas === 0} onClick={() => void act(() => api.scaleService(service.name, service.desiredReplicas - 1))}>−1</button><button disabled={busy} onClick={() => void act(() => api.restartService(service.name))}>Restart</button></div>}</td>
                   </tr>
                 ))}
-                {!snapshot?.services.length && <tr><td colSpan={6} className="empty">No services yet. Deploy the included echo example or submit your own image.</td></tr>}
+                {!snapshot?.services.length && <tr><td colSpan={6} className="empty">{publicDemo ? 'No services are currently running in this demonstration.' : 'No services yet. Deploy the included echo example or submit your own image.'}</td></tr>}
               </tbody>
             </table>
           </div>
@@ -191,14 +195,14 @@ export default function App() {
               <div><small>Node</small><span>{allocation.nodeName ?? 'unscheduled'}</span></div>
               <div><small>Endpoint</small><span className="mono">{allocation.endpoint ?? '—'}</span></div>
               <div><small>Restarts</small><span>{allocation.restartCount}</span></div>
-              <button onClick={() => void openLogs(allocation)}>Logs</button>
+              {publicDemo ? <span className="read-only">Protected</span> : <button onClick={() => void openLogs(allocation)}>Logs</button>}
             </article>))}
             {!snapshot?.allocations.length && <p className="empty">No allocations have been planned.</p>}
           </div>
         </section>
       </main>
 
-      {deployOpen && <div className="modal-backdrop" onMouseDown={() => setDeployOpen(false)}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="deploy-title" onMouseDown={(event) => event.stopPropagation()}>
+      {!publicDemo && deployOpen && <div className="modal-backdrop" onMouseDown={() => setDeployOpen(false)}><section className="modal" role="dialog" aria-modal="true" aria-labelledby="deploy-title" onMouseDown={(event) => event.stopPropagation()}>
         <div className="panel-heading"><div><p className="eyebrow">Desired state</p><h2 id="deploy-title">Deploy a container</h2></div><button className="icon" onClick={() => setDeployOpen(false)} aria-label="Close">×</button></div>
         <form onSubmit={submitDeploy}>
           <label>Service name<input required pattern="[a-z][a-z0-9-]{0,62}" value={deploy.name} onChange={(event) => setDeploy({ ...deploy, name: event.target.value })} placeholder="orders-api" /></label>
@@ -211,7 +215,7 @@ export default function App() {
         </form>
       </section></div>}
 
-      {selected && <div className="drawer-backdrop" onMouseDown={() => setSelected(null)}><aside className="drawer" onMouseDown={(event) => event.stopPropagation()}>
+      {!publicDemo && selected && <div className="drawer-backdrop" onMouseDown={() => setSelected(null)}><aside className="drawer" onMouseDown={(event) => event.stopPropagation()}>
         <div className="panel-heading"><div><p className="eyebrow">Container output</p><h2>{selected.serviceName}-{selected.replica}</h2></div><button className="icon" onClick={() => setSelected(null)} aria-label="Close logs">×</button></div>
         <pre>{logs.join('\n')}</pre>
       </aside></div>}

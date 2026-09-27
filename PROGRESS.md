@@ -14,13 +14,28 @@ Last updated: 2026-09-27
 - [x] M5 — React operations console and Prometheus metrics.
 - [x] M6 — full cross-platform release validation and distributable archive.
 
+## Post-v0.1 public-sharing milestone
+
+- [x] M7a — separate public React build with administrative controls removed.
+- [x] M7b — server-side exact-route allowlist and sanitized snapshot facade.
+- [x] M7c — hardened Cloudflare Quick Tunnel Compose service with no exposed
+  controller, gateway, metrics, database, cache, gRPC, or Docker endpoint.
+- [x] M7d — zero-cost/OCI boundaries, safe start/verify/stop procedures,
+  Windows notes, and learning concepts documented.
+
+Any generated Quick Tunnel address is intentionally not recorded here: the
+checked-in workflow is prepared, but each launch is an explicit operator
+action, and its URL is temporary rather than a stable deployment. Every tunnel
+session must repeat the checks in
+[docs/PUBLIC_OBSERVER.md](docs/PUBLIC_OBSERVER.md) before the link is shared.
+
 ## Verification ledger
 
 | Check | Result | Notes |
 |---|---|---|
 | Portable C++ core tests | Passed | All 13 tests pass with strict warnings on CI GCC, Clang, and MSVC. |
 | Portable core sanitizers | Passed | The same 13 tests passed with AddressSanitizer and UndefinedBehaviorSanitizer enabled. |
-| Repository contract | Passed | 117 source/document files: JSON, local documentation links, personal-path/credential patterns, credentials, and POSIX script syntax. |
+| Repository contract | Passed | Source/document files: JSON, local documentation links, personal-path/credential patterns, credentials, and POSIX script syntax. |
 | YAML and JSON parsing | Passed | CI, Dependabot, Compose, Prometheus, VS Code, dashboard, and vcpkg definitions parse locally. |
 | Credential bootstrap | Passed | POSIX bootstrap generated three 64-character secrets with owner-only permissions and refused overwrite. |
 | Echo workload smoke test | Passed | The example server answered `/health` and `/echo` on a loopback test port. |
@@ -31,6 +46,9 @@ Last updated: 2026-09-27
 | Real container end-to-end proof | Passed | CI started the entire stack, deployed two echo replicas, routed through the gateway, and exercised terminal-failure plus delayed-drain recovery. |
 | Windows release checks | Passed | Windows CI compiled/runs the portable core with MSVC and parses every checked-in PowerShell script. |
 | Public GitHub Actions workflow | Passed | The [public CI history](https://github.com/VenomHarshith/minicloud-platform/actions/workflows/ci.yml) provides reproducible online evidence. |
+| Public snapshot sanitization | Passed | The focused unit proof rejects representative secrets, raw IDs, endpoints, errors, event payloads, and private labels. |
+| Public local edge boundary | Passed | The observer page and live snapshot return successfully while the mutation path is blocked before the controller. |
+| Temporary internet URL | Prepared; per session | Quick Tunnel has a random hostname and no uptime guarantee; launch requires explicit operator approval and verification instead of treating one URL as a release artifact. |
 
 M6 is closed. The supported full platform path remains Docker Desktop/Engine;
 native host dependencies are optional for component development.

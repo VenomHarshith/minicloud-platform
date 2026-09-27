@@ -11,11 +11,13 @@ documentation-only ZIP, so the explanations do not drift into duplicate copies.
    technology, operation, troubleshooting, cost, and limitation reference.
 2. `README.md` — product purpose, capabilities, architecture, and boundaries.
 3. `RUN_INSTRUCTIONS.md` — exact Windows/macOS/Linux operating procedure.
-4. `RELEASE_NOTES.md` — download contents, verification, and hosting boundary.
-5. `MILESTONES.md` — ordered build stages.
-6. `PROGRESS.md` — implementation and verification ledger.
-7. `docs/BUILD_AND_LEARN.md` — what, why, when, and how for every technology.
-8. `SECURITY.md` and `CONTRIBUTING.md` — safe operation and extension rules.
+4. `docs/PUBLIC_OBSERVER.md` — safe live sharing, exact commands, security,
+   Windows, OCI/cost limits, and public-deployment learning concepts.
+5. `RELEASE_NOTES.md` — download contents, verification, and hosting boundary.
+6. `MILESTONES.md` — ordered build stages.
+7. `PROGRESS.md` — implementation and verification ledger.
+8. `docs/BUILD_AND_LEARN.md` — what, why, when, and how for every technology.
+9. `SECURITY.md` and `CONTRIBUTING.md` — safe operation and extension rules.
 
 ## Deep design
 
@@ -33,11 +35,12 @@ documentation-only ZIP, so the explanations do not drift into duplicate copies.
 3. `docs/OPERATIONS.md`
 4. `docs/DEPENDENCIES.md`
 5. `docs/ONLINE_DEPLOYMENT.md`
-6. `docs/CLEAN_ROOM.md`
+6. `docs/PUBLIC_OBSERVER.md`
+7. `docs/CLEAN_ROOM.md`
 
 ## Follow the implementation
 
-Read `docs/milestones/M0_...` through `M6_...` in numeric order. Each file
+Read `docs/milestones/M0_...` through `M7_...` in numeric order. Each file
 states the outcome, why it matters, implementation files, verification, and a
 hands-on extension.
 

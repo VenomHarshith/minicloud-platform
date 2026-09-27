@@ -2,6 +2,43 @@
 
 All notable changes to MiniCloud are recorded here.
 
+## Unreleased
+
+### Added
+
+- A separate public-observer dashboard build backed by the real MiniCloud
+  control plane, with administrative controls and log access removed.
+- A read-only facade that allowlists operational snapshot fields and replaces
+  or removes raw service/node/allocation identities, environments, container
+  IDs, endpoints, errors, event payloads, and private labels.
+- A hardened Compose overlay for the public facade and a free, temporary
+  Cloudflare Quick Tunnel that targets only the restricted dashboard edge.
+- Cross-platform public start, verification, shutdown, cost, OCI, security,
+  and learning guidance in `docs/PUBLIC_OBSERVER.md`.
+- Unit coverage for the public snapshot sanitization contract.
+
+### Security
+
+- Public Nginx permits only the exact snapshot read route, rejects all other
+  API paths and write methods, adds browser security headers, and rate-limits
+  snapshot requests.
+- The public facade and tunnel run unprivileged with read-only root filesystems,
+  dropped capabilities, and `no-new-privileges`; neither receives a Docker
+  socket or a host-published port.
+- Controller, gateway, gRPC, Prometheus, PostgreSQL, Valkey, Docker endpoints,
+  logs, and administrative actions remain outside the public tunnel.
+
+### Known limits
+
+- Cloudflare Quick Tunnel is temporary testing infrastructure with a random
+  URL, no SLA, and availability tied to the operator's running host.
+- The public facade internally holds the current full controller token because
+  scoped read-only controller credentials do not exist yet.
+- Public metadata still includes service/image/node names, selected labels,
+  resources, placement state, timestamps, and high-level event types.
+- The worker-only SELinux label override used for rootful Podman needs live
+  runtime verification on each Docker Desktop environment.
+
 ## 0.1.0 - 2026-09-27
 
 ### Added

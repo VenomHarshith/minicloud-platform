@@ -22,6 +22,7 @@ button { border: 1px solid #34534b; border-radius: 8px; color: #c9ddd7; backgrou
 button:hover { border-color: #61dcb4; color: white; } button:disabled { opacity: .45; cursor: not-allowed; }
 button.primary { padding: 11px 16px; color: #062018; border: none; background: #5ce1b4; box-shadow: 0 8px 30px #28d79d20; }
 .alert { display: flex; align-items: center; gap: 7px; margin-bottom: 18px; padding: 12px 14px; color: #ffcfbd; border: 1px solid #713c32; border-radius: 9px; background: #2a1713; font-size: 12px; }.alert button { margin-left: auto; }
+.public-notice { display: flex; align-items: center; gap: 10px; margin: -10px 0 18px; padding: 12px 14px; color: #b9f5df; border: 1px solid #28705a; border-radius: 9px; background: #0b2b22; font-size: 12px; }.public-notice span { color: #85b9a8; }.read-only { display: inline-block; padding: 5px 8px; color: #80ad9e; border: 1px solid #29483f; border-radius: 7px; font-size: 9px; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; }
 .stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
 .stats article, .panel { border: 1px solid #203b34; border-radius: 13px; background: linear-gradient(145deg, #0c1c18ee, #091713e8); box-shadow: 0 18px 60px #0003; }
 .stats article { padding: 18px; }.stats span, .stats small { display: block; color: #78988f; font-size: 11px; }.stats strong { display: block; margin: 9px 0 4px; font-size: 27px; letter-spacing: -.04em; }

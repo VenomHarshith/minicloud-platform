@@ -80,7 +80,24 @@ defines secret references for a future provider, but v0.1 rejects them.
   manage them through the Docker API without joining that network.
 - The gateway bounds target/body/response sizes and upstream timeouts.
 - Only connection failures for idempotent methods are retried.
-- There is no ingress TLS; this is not an internet-facing configuration.
+- The default administrative configuration has no ingress TLS and is not
+  internet-facing.
+
+The optional public observer in `compose.public.yaml` creates a narrower trust
+boundary. Cloudflare terminates public HTTPS and tunnels only to a separate
+Nginx configuration. That edge allowlists `GET /api/v1/snapshot`; a facade
+constructs a new response without raw IDs, environments, container endpoints,
+logs, errors, event payloads, or private labels. The normal API, gateway,
+metrics, databases, gRPC, Docker socket, and write routes stay outside the
+tunnel.
+
+The observer is anonymous and intentionally publishes selected names, image
+references, resource values, placement, timestamps, selected labels, and event
+types. The facade also holds the full controller token internally because v0.1
+has no scoped credential. Treat the random link as public, close it before any
+dashboard rebuild that omits the public overlay, and follow
+[PUBLIC_OBSERVER.md](PUBLIC_OBSERVER.md). This exception does not make the
+administrative platform safe for hostile multi-tenancy or public control.
 
 ## Denial of service
 

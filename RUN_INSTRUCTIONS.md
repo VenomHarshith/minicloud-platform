@@ -6,6 +6,10 @@ VS Code users can run the same checked-in commands from **Terminal → Run Task*
 the ordered workflow and what each task does are in
 [docs/VSCODE.md](docs/VSCODE.md).
 
+This file starts the private administrative dashboard. To share a live
+read-only URL, follow [docs/PUBLIC_OBSERVER.md](docs/PUBLIC_OBSERVER.md) instead.
+Never place the normal dashboard behind a public tunnel.
+
 ## 1. Install the one mandatory platform dependency
 
 Install Docker Desktop on Windows/macOS, or Docker Engine plus Compose v2 on
@@ -194,3 +198,9 @@ Windows native setup is in [docs/WINDOWS.md](docs/WINDOWS.md).
   side of the mapping in a personal Compose override.
 
 Never expose the Docker daemon on unauthenticated TCP port 2375.
+
+If a public-observer tunnel is running, do not rerun this guide's start command,
+`make up`, `make demo`, `scripts/e2e.sh`, or `Start-MiniCloud.ps1`: those paths
+do not include the public overlay and may replace the restricted dashboard with
+the administrative build while the tunnel remains alive. Close the tunnel
+first, or use every compose file specified by the public-observer guide.

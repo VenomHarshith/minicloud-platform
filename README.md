@@ -136,6 +136,25 @@ this revision with an existing prerelease PostgreSQL volume, follow the
 non-destructive schema upgrade in
 [docs/OPERATIONS.md](docs/OPERATIONS.md#upgrade-an-existing-prerelease-database).
 
+## Share a safe live observer
+
+MiniCloud can publish a **sanitized, read-only view of the real running
+cluster** through a free Cloudflare Quick Tunnel. The public edge exposes only
+`GET /api/v1/snapshot`; deploy, scale, restart, delete, logs, internal IDs,
+container endpoints, Prometheus, the workload gateway, and the control plane
+remain private. The browser never receives the controller token.
+
+This is a temporary portfolio/demo URL, not static hosting and not a publicly
+controllable cloud. It works only while the machine, Docker stack, and tunnel
+remain online, and its random URL can change after restart. Do not expose the
+normal administrative dashboard instead.
+
+Follow [docs/PUBLIC_OBSERVER.md](docs/PUBLIC_OBSERVER.md) for the architecture,
+security boundary, exact Linux/macOS/Windows commands, verification checks,
+safe shutdown, costs, Quick Tunnel limits, and the optional OCI Always Free
+path. The shorter hosting comparison is in
+[docs/ONLINE_DEPLOYMENT.md](docs/ONLINE_DEPLOYMENT.md).
+
 ## Submit your own container
 
 Create `examples/orders-service.json`:
@@ -217,6 +236,7 @@ or Docker endpoint settings.
 - `dashboard/` — React + TypeScript operations UI.
 - `database/migrations/` — durable PostgreSQL schema.
 - `deploy/` — Compose, Prometheus, credentials, and cross-platform overrides.
+- `deploy/compose.public.yaml` — sanitized observer and temporary HTTPS tunnel.
 - `examples/echo-service/` — real end-to-end workload.
 - `tests/` — portable core/runtime proofs.
 - `docs/milestones/` — one build-and-learning record per milestone.
@@ -251,7 +271,7 @@ machine capable of running Docker; MiniCloud does not silently create or bill a
 cloud resource.
 
 The public GitHub repository runs the complete Docker proof in an ephemeral
-Actions runner, so builds can be checked online without a paid server. That is
-continuous verification, not a permanently running cluster. See
+Actions runner, and the optional public observer can share live sanitized state
+from a running host. Neither is a permanently guaranteed cluster. See
 [docs/ONLINE_DEPLOYMENT.md](docs/ONLINE_DEPLOYMENT.md) for the exact distinction
 and the cost boundary.

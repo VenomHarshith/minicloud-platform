@@ -1,0 +1,57 @@
+services:
+  # Podman runs its API socket under an SELinux label that ordinary container
+  # labels cannot access.  These two services already hold root-equivalent
+  # container-engine authority by design, so disable label separation only for
+  # the workers; the Internet-facing services below retain confinement.
+  worker-a:
+    security_opt: [label=disable]
+
+  worker-b:
+    security_opt: [label=disable]
+
+  dashboard:
+    build:
+      args:
+        VITE_PUBLIC_DEMO: 'true'
+        NGINX_CONFIG: nginx.public.conf
+    environment:
+      MINICLOUD_API_TOKEN: ''
+    depends_on:
+      public-api: { condition: service_healthy }
+
+  public-api:
+    image: python:3.13-alpine
+    restart: unless-stopped
+    command: ['python', '/app/public_api.py']
+    environment:
+      PYTHONDONTWRITEBYTECODE: '1'
+      MINICLOUD_CONTROLLER_URL: http://controller:8090
+      MINICLOUD_API_TOKEN: ${MINICLOUD_API_TOKEN:?run the MiniCloud credential initializer}
+    volumes:
+      - ./public_api.py:/app/public_api.py:ro
+    read_only: true
+    tmpfs:
+      - /tmp:size=16m,mode=1777
+    user: '65532:65532'
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    depends_on:
+      controller: { condition: service_healthy }
+    healthcheck:
+      test: ['CMD', 'python', '-c', "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8081/healthz', timeout=2).read()"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [control]
+
+  cloudflared:
+    image: cloudflare/cloudflared:2026.9.1
+    restart: unless-stopped
+    command: ['tunnel', '--no-autoupdate', '--url', 'http://dashboard:8080']
+    read_only: true
+    user: '65532:65532'
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    depends_on:
+      dashboard: { condition: service_healthy }
+    networks: [control]

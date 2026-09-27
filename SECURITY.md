@@ -16,7 +16,10 @@ commit tested. Never include employer/customer infrastructure or data.
 
 The default Compose deployment is for one trusted operator, trusted images, and
 a local machine. Published ports bind to loopback. It is not an internet-facing
-or hostile multi-tenant configuration.
+or hostile multi-tenant configuration. The optional
+[public observer](docs/PUBLIC_OBSERVER.md) is a separate anonymous, sanitized,
+read-only edge; it does not expose the administrative product or workload
+gateway.
 
 Treat the Docker socket as host-equivalent authority. Only workers receive it,
 but a compromised worker can still control the daemon. Do not mount the socket
