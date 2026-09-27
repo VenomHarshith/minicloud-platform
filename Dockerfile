@@ -1,4 +1,4 @@
-FROM ubuntu:24.04 AS build
+FROM ubuntu:26.04 AS build
 ENV DEBIAN_FRONTEND=noninteractive
 ARG LIBPQXX_VERSION=7.9.2
 ARG LIBPQXX_SHA256=e37d5774c39f6c802e32d7f418e88b8e530404fb54758516e884fc0ebdee6da4
@@ -44,7 +44,7 @@ RUN cmake -S . -B /build -G Ninja -DCMAKE_BUILD_TYPE=Release \
  && cmake --build /build --parallel 2 \
  && ctest --test-dir /build --output-on-failure
 
-FROM ubuntu:24.04 AS runtime
+FROM ubuntu:26.04 AS runtime
 ENV DEBIAN_FRONTEND=noninteractive
 COPY --from=build /opt/libpqxx/share/licenses/libpqxx/COPYING \
   /usr/share/doc/libpqxx/copyright
