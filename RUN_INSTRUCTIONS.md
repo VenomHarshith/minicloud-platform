@@ -45,8 +45,7 @@ change the password stored in an initialized database.
 ## 3. Start the platform
 
 Fresh databases apply all checked-in migrations automatically. If this checkout
-will reuse a prerelease PostgreSQL volume initialized with only schema version 1
-or 2, first follow
+will reuse a prerelease PostgreSQL volume below schema version 4, first follow
 [the non-destructive migration procedure](docs/OPERATIONS.md#upgrade-an-existing-prerelease-database).
 
 Windows PowerShell:
@@ -95,7 +94,9 @@ macOS/Linux:
 ```
 
 The proof builds `minicloud/echo-service:dev`, submits two replicas, waits for
-scheduling and health, and calls it through the load-balancing gateway.
+scheduling and health, and calls it through the load-balancing gateway. The
+POSIX proof also checks that terminal failures require an explicit restart and
+that a stop delayed by worker interruption cannot create a duplicate runtime.
 
 Expected final line:
 
@@ -162,7 +163,9 @@ state remains in PostgreSQL and is recreated after the next start. Do not add
 ## 8. Native developer build
 
 The Docker path is the supported beginner path. For native C++ work, install
-CMake, Ninja, a C++20 compiler, and the dependencies in `vcpkg.json`.
+CMake, Ninja, a C++20 compiler, and the dependencies in `vcpkg.json`. CMake
+requires libpqxx 7.9.x and rejects libpqxx 8; the manifest does not pin a vcpkg
+registry baseline, so do not assume the latest vcpkg checkout is compatible.
 
 ```bash
 cmake --preset dev

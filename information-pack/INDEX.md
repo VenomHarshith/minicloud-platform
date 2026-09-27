@@ -7,12 +7,15 @@ documentation-only ZIP, so the explanations do not drift into duplicate copies.
 
 ## Start here
 
-1. `README.md` — product purpose, capabilities, architecture, and boundaries.
-2. `RUN_INSTRUCTIONS.md` — exact Windows/macOS/Linux operating procedure.
-3. `MILESTONES.md` — ordered build stages.
-4. `PROGRESS.md` — implementation and verification ledger.
-5. `docs/BUILD_AND_LEARN.md` — what, why, when, and how for every technology.
-6. `SECURITY.md` and `CONTRIBUTING.md` — safe operation and extension rules.
+1. `docs/COMPLETE_PROJECT_GUIDE.md` — the complete product, architecture,
+   technology, operation, troubleshooting, cost, and limitation reference.
+2. `README.md` — product purpose, capabilities, architecture, and boundaries.
+3. `RUN_INSTRUCTIONS.md` — exact Windows/macOS/Linux operating procedure.
+4. `RELEASE_NOTES.md` — download contents, verification, and hosting boundary.
+5. `MILESTONES.md` — ordered build stages.
+6. `PROGRESS.md` — implementation and verification ledger.
+7. `docs/BUILD_AND_LEARN.md` — what, why, when, and how for every technology.
+8. `SECURITY.md` and `CONTRIBUTING.md` — safe operation and extension rules.
 
 ## Deep design
 
@@ -38,6 +41,6 @@ Read `docs/milestones/M0_...` through `M6_...` in numeric order. Each file
 states the outcome, why it matters, implementation files, verification, and a
 hands-on extension.
 
-No Cisco or other private employer/customer information belongs in this pack.
+No private employer/customer information belongs in this pack.
 Generated archives also exclude credentials, databases, logs, build output,
 dependency caches, and Git metadata.

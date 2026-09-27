@@ -3,39 +3,47 @@ set -eu
 
 root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
 project_name=minicloud-platform
-version=0.1.0
+
+if ! command -v git >/dev/null 2>&1; then
+  echo "git is required to create release archives" >&2
+  exit 1
+fi
+
+version=$(
+  git -C "$root" show HEAD:CMakeLists.txt 2>/dev/null \
+    | sed -n 's/^project(MiniCloud VERSION \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\) LANGUAGES CXX)$/\1/p'
+)
+if [ -z "$version" ]; then
+  echo "could not read the MiniCloud version from committed CMakeLists.txt" >&2
+  exit 1
+fi
+
 dist_directory="$root/dist"
 source_archive="$dist_directory/$project_name-$version-source.zip"
 info_archive="$dist_directory/minicloud-information-pack-$version.zip"
 
-if ! command -v zip >/dev/null 2>&1; then
-  echo "zip is required to create release archives" >&2
-  exit 1
-fi
+for required_path in RELEASE_NOTES.md docs/COMPLETE_PROJECT_GUIDE.md; do
+  if ! git -C "$root" cat-file -e "HEAD:$required_path" 2>/dev/null; then
+    echo "$required_path is not committed at HEAD; commit release inputs before packaging" >&2
+    exit 1
+  fi
+done
 
 mkdir -p "$dist_directory"
 rm -f "$source_archive" "$info_archive"
 
-(
-  cd "$(dirname "$root")"
-  zip -rq "$source_archive" "$project_name" \
-    -x "$project_name/.git/*" \
-       "$project_name/deploy/.env" \
-       "$project_name/build/*" \
-       "$project_name/dist/*" \
-       "$project_name/dashboard/node_modules/*" \
-       "$project_name/dashboard/dist/*" \
-       "$project_name/.cache/*" \
-       "$project_name/*.log" \
-       "$project_name/.DS_Store"
-)
+git -C "$root" archive \
+  --format=zip \
+  --prefix="$project_name/" \
+  --output="$source_archive" \
+  HEAD
 
-(
-  cd "$root"
-  zip -rq "$info_archive" \
-    README.md RUN_INSTRUCTIONS.md MILESTONES.md PROGRESS.md CHANGELOG.md \
-    SECURITY.md CONTRIBUTING.md LICENSE \
-    information-pack docs
-)
+git -C "$root" archive \
+  --format=zip \
+  --output="$info_archive" \
+  HEAD -- \
+  README.md RUN_INSTRUCTIONS.md RELEASE_NOTES.md MILESTONES.md PROGRESS.md CHANGELOG.md \
+  SECURITY.md CONTRIBUTING.md LICENSE \
+  information-pack docs
 
 printf 'Created:\n  %s\n  %s\n' "$source_archive" "$info_archive"

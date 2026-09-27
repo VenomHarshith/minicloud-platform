@@ -8,7 +8,8 @@ endpoints, and performs bounded restart recovery.
 
 ## What was built
 
-- Unix-socket, Windows-named-pipe, and protected TCP Docker transports.
+- Unix-socket, Windows-named-pipe, and explicitly opted-in HTTP/HTTPS Docker
+  transports; remote protection remains an operator responsibility.
 - CPU, memory, PID, read-only-root, privilege, capabilities, security options,
   port, and network configuration.
 - Platform ownership labels and immutable spec fingerprints.

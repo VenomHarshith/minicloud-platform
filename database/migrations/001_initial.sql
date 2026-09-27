@@ -20,7 +20,8 @@ CREATE TABLE IF NOT EXISTS services (
     generation BIGINT NOT NULL DEFAULT 1 CHECK (generation > 0),
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CHECK (name ~ '^[a-z][a-z0-9-]{0,62}$'),
+    CONSTRAINT services_name_dns_label
+        CHECK (name ~ '^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$'),
     CHECK (length(image) BETWEEN 1 AND 512),
     CHECK (octet_length(environment::text) <= 16384),
     CHECK (octet_length(placement::text) <= 8192)
@@ -40,7 +41,8 @@ CREATE TABLE IF NOT EXISTS nodes (
     last_heartbeat TIMESTAMPTZ NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    CHECK (name ~ '^[a-z][a-z0-9-]{0,62}$'),
+    CONSTRAINT nodes_name_dns_label
+        CHECK (name ~ '^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$'),
     CHECK (octet_length(labels::text) <= 8192)
 );
 

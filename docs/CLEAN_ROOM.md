@@ -15,8 +15,7 @@ Forbidden:
 - internal architecture, configurations, tickets, screenshots, or logs;
 - private endpoints, repository names, credentials, certificates, or tokens;
 - production/user data;
-- material copied from proprietary products or training;
-- Cisco internal or proprietary information.
+- material copied from non-public products, training, or documentation.
 
 Before a commit or archive, inspect tracked files, search for credentials and
 absolute personal paths, verify `deploy/.env` is ignored, and build from a clean

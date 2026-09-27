@@ -19,7 +19,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Validate JSON, documentation links, and clean-room hygiene
         run: python3 scripts/check_repository.py
@@ -52,7 +52,7 @@ jobs:
             compiler: cl
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
@@ -90,6 +90,27 @@ jobs:
           if errorlevel 1 exit /b 1
           popd
 
+      - name: Parse PowerShell automation
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $scripts = Get-ChildItem deploy,scripts -Recurse -Filter *.ps1
+          foreach ($script in $scripts) {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              $script.FullName,
+              [ref]$tokens,
+              [ref]$errors
+            )
+            if ($errors.Count -gt 0) {
+              $details = $errors | ForEach-Object {
+                "$($script.FullName):$($_.Extent.StartLineNumber): $($_.Message)"
+              }
+              throw ($details -join "`n")
+            }
+          }
+
   dashboard:
     name: Dashboard production build
     runs-on: ubuntu-latest
@@ -99,12 +120,12 @@ jobs:
         working-directory: dashboard
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: '22'
 
@@ -123,7 +144,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 
@@ -154,7 +175,7 @@ jobs:
       - compose-validation
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           persist-credentials: false
 

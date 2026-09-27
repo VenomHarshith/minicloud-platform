@@ -80,6 +80,10 @@ The worker runtime enforces:
 - bounded startup timeout and exponential restart backoff;
 - a maximum restart count.
 
+After that restart budget is exhausted, the allocation remains failed. An
+operator must request a service restart, which advances generation and creates
+a deliberately fresh revision and restart budget.
+
 The default Compose application starts `worker-a` and `worker-b`. They are logical
 nodes sharing one local Docker engine. This lets a laptop exercise placement and
 failure behavior without running two VMs. The gRPC protocol and Docker endpoint
@@ -142,6 +146,10 @@ Scaling changes `desired_replicas` without changing the service generation.
 Reconciliation creates or reactivates only missing replica indexes. Decreasing
 replicas marks excess allocations stopped and enqueues fenced stop commands;
 successful completion records stopped state without deleting the audit history.
+If the service is scaled back up before that completion, v0.1 waits for the old
+worker to acknowledge the stop before reactivating the replica index. This
+chooses temporary unavailability over risking two containers performing the
+same logical replica's work.
 
 ### Restart
 
@@ -153,9 +161,11 @@ creates the replacement, and rejects replayed older commands.
 ### Worker loss
 
 After the heartbeat timeout, the controller marks the node not ready and its
-running allocations lost. Reconciliation selects another eligible node and
-increments allocation revisions. Observations from the old assignment no longer
-match node/revision fences.
+still-desired running allocations lost. Reconciliation selects another eligible
+node and increments allocation revisions. A current stop command for a replica
+already being drained remains durable and assigned to the old node; the same
+worker process can claim it after reconnecting. Observations from superseded
+assignments no longer match node/revision fences.
 
 ## Consistency and delivery guarantees
 
@@ -171,8 +181,9 @@ match node/revision fences.
 
 - Portable core code uses only C++20 standard facilities.
 - HTTP and gRPC use cross-platform libraries.
-- Docker transport supports Unix sockets, Windows named pipes, and protected
-  loopback/TLS TCP endpoints; unsafe remote TCP is rejected by default.
+- Docker transport supports Unix sockets, Windows named pipes, and HTTP/HTTPS
+  TCP endpoints. Non-loopback TCP requires explicit opt-in; remote protection
+  and authentication must be supplied outside v0.1.
 - PowerShell and POSIX bootstrap paths generate the same configuration contract.
 - Full-stack Windows runs Linux containers under Docker Desktop/WSL 2.
 

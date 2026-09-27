@@ -33,6 +33,7 @@ the database from saying work exists while the delivery channel loses it.
 - `database/migrations/001_initial.sql`
 - `database/migrations/002_controller_epoch.sql`
 - `database/migrations/003_status_report_receipts.sql`
+- `database/migrations/004_dns_label_constraints.sql`
 - `proto/controller_worker.proto`
 - `cpp/controller/repository.cpp`
 - `cpp/controller/api.cpp`

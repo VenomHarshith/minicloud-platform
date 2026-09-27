@@ -89,9 +89,12 @@ Try reusing a command ID with different content and see it rejected.
 
 ## Docker Engine API and resource isolation
 
-**What:** The worker talks to Docker over HTTP through Unix socket, Windows named
-pipe, or protected TCP. It creates JSON specifications with NanoCPUs, memory,
-PIDs, capabilities, security options, networks, labels, and health commands.
+**What:** The worker talks to Docker over HTTP through a Unix socket, a Windows
+named pipe, or an explicitly opted-in HTTP/HTTPS TCP endpoint. MiniCloud does
+not configure remote client certificates; remote transport protection and
+authentication are an external operator responsibility. It creates JSON
+specifications with NanoCPUs, memory, PIDs, capabilities, security options,
+networks, labels, and health commands.
 
 **Why:** A CLI subprocess is harder to validate, structure, timeout, and test.
 The API keeps data as data and avoids shell interpretation.

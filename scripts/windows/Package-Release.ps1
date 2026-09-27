@@ -3,46 +3,51 @@ param()
 
 $ErrorActionPreference = 'Stop'
 $Root = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
-$Version = '0.1.0'
 $Dist = Join-Path $Root 'dist'
-$TemporaryRoot = Join-Path ([IO.Path]::GetTempPath()) ("minicloud-package-" + [Guid]::NewGuid().ToString('N'))
-$SourceStage = Join-Path $TemporaryRoot 'minicloud-platform'
-$InfoStage = Join-Path $TemporaryRoot 'minicloud-information-pack'
 
-New-Item -ItemType Directory -Force -Path $Dist, $SourceStage, $InfoStage | Out-Null
-
-try {
-    $ExcludedDirectories = @('.git', 'build', 'dist', 'node_modules', '.cache')
-    $ExcludedFiles = @('.env', '.DS_Store')
-
-    Get-ChildItem -LiteralPath $Root -Recurse -File | Where-Object {
-        $Relative = $_.FullName.Substring($Root.Length).TrimStart('\', '/')
-        $Parts = $Relative -split '[\\/]'
-        -not ($Parts | Where-Object { $_ -in $ExcludedDirectories }) -and
-        $_.Name -notin $ExcludedFiles -and $_.Extension -ne '.log'
-    } | ForEach-Object {
-        $Relative = $_.FullName.Substring($Root.Length).TrimStart('\', '/')
-        $Destination = Join-Path $SourceStage $Relative
-        New-Item -ItemType Directory -Force -Path (Split-Path $Destination) | Out-Null
-        Copy-Item -LiteralPath $_.FullName -Destination $Destination
-    }
-
-    $TopLevelDocuments = @(
-        'README.md', 'RUN_INSTRUCTIONS.md', 'MILESTONES.md', 'PROGRESS.md',
-        'CHANGELOG.md', 'SECURITY.md', 'CONTRIBUTING.md', 'LICENSE'
-    )
-    foreach ($Name in $TopLevelDocuments) {
-        Copy-Item -LiteralPath (Join-Path $Root $Name) -Destination $InfoStage
-    }
-    Copy-Item -Recurse -LiteralPath (Join-Path $Root 'docs') -Destination $InfoStage
-    Copy-Item -Recurse -LiteralPath (Join-Path $Root 'information-pack') -Destination $InfoStage
-
-    $SourceArchive = Join-Path $Dist "minicloud-platform-$Version-source.zip"
-    $InfoArchive = Join-Path $Dist "minicloud-information-pack-$Version.zip"
-    Compress-Archive -Path $SourceStage -DestinationPath $SourceArchive -Force
-    Compress-Archive -Path (Join-Path $InfoStage '*') -DestinationPath $InfoArchive -Force
-    Write-Host "Created:`n  $SourceArchive`n  $InfoArchive"
+if (-not (Get-Command git -ErrorAction SilentlyContinue)) {
+    throw 'git is required to create release archives'
 }
-finally {
-    if (Test-Path $TemporaryRoot) { Remove-Item -Recurse -Force -LiteralPath $TemporaryRoot }
+
+$CMakeLists = (& git -C $Root show 'HEAD:CMakeLists.txt' 2>$null) -join "`n"
+if ($LASTEXITCODE -ne 0 -or
+    $CMakeLists -notmatch '(?m)^project\(MiniCloud VERSION ([0-9]+\.[0-9]+\.[0-9]+) LANGUAGES CXX\)$') {
+    throw 'could not read the MiniCloud version from committed CMakeLists.txt'
 }
+$Version = $Matches[1]
+$SourceArchive = Join-Path $Dist "minicloud-platform-$Version-source.zip"
+$InfoArchive = Join-Path $Dist "minicloud-information-pack-$Version.zip"
+
+foreach ($RequiredPath in @('RELEASE_NOTES.md', 'docs/COMPLETE_PROJECT_GUIDE.md')) {
+    & git -C $Root cat-file -e "HEAD`:$RequiredPath" 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        throw "$RequiredPath is not committed at HEAD; commit release inputs before packaging"
+    }
+}
+
+New-Item -ItemType Directory -Force -Path $Dist | Out-Null
+Remove-Item -Force -ErrorAction SilentlyContinue -LiteralPath $SourceArchive, $InfoArchive
+
+$SourceArguments = @(
+    '-C', $Root, 'archive', '--format=zip', '--prefix=minicloud-platform/',
+    "--output=$SourceArchive", 'HEAD'
+)
+& git @SourceArguments
+if ($LASTEXITCODE -ne 0) {
+    throw 'git archive failed while creating the source archive'
+}
+
+$InformationPaths = @(
+    'README.md', 'RUN_INSTRUCTIONS.md', 'RELEASE_NOTES.md', 'MILESTONES.md',
+    'PROGRESS.md', 'CHANGELOG.md', 'SECURITY.md', 'CONTRIBUTING.md', 'LICENSE',
+    'information-pack', 'docs'
+)
+$InformationArguments = @(
+    '-C', $Root, 'archive', '--format=zip', "--output=$InfoArchive", 'HEAD', '--'
+) + $InformationPaths
+& git @InformationArguments
+if ($LASTEXITCODE -ne 0) {
+    throw 'git archive failed while creating the information archive'
+}
+
+Write-Host "Created:`n  $SourceArchive`n  $InfoArchive"

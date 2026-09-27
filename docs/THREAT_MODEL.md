@@ -93,4 +93,4 @@ assigned resources or stress the shared Docker daemon.
 
 Never add employer/customer code, private diagrams, internal hostnames, tickets,
 logs, credentials, production data, or non-public architecture information.
-MiniCloud contains no Cisco information and needs none.
+Only independently authored material based on public information belongs here.

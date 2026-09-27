@@ -77,8 +77,7 @@ Allocation AbsentIntent(const Allocation& allocation,
 
 bool RequiresFreshEnsureRevision(const Allocation& allocation,
                                  const std::uint64_t desired_generation) noexcept {
-  if (allocation.runtime_state() == RuntimeState::kFailed ||
-      allocation.runtime_state() == RuntimeState::kStopped) {
+  if (allocation.runtime_state() == RuntimeState::kStopped) {
     return true;
   }
   return allocation.runtime_state() == RuntimeState::kRunning &&
@@ -197,6 +196,13 @@ ReconcilePlan Reconciler::Plan(const WorkloadSpec& workload,
                                       CommandKind::kEnsureWorkload,
                                       controller_epoch));
       }
+      continue;
+    }
+
+    // A failed allocation has exhausted its worker restart policy. Keep it
+    // failed until an operator changes the service generation; otherwise each
+    // reconcile pass could manufacture a fresh revision and bypass the limit.
+    if (allocation.runtime_state() == RuntimeState::kFailed) {
       continue;
     }
 

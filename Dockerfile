@@ -1,7 +1,7 @@
 FROM ubuntu:24.04 AS build
 ENV DEBIAN_FRONTEND=noninteractive
-ARG LIBPQXX_VERSION=7.8.1
-ARG LIBPQXX_SHA256=0f4c0762de45a415c9fd7357ce508666fa88b9a4a463f5fb76c235bc80dd6a84
+ARG LIBPQXX_VERSION=7.9.2
+ARG LIBPQXX_SHA256=e37d5774c39f6c802e32d7f418e88b8e530404fb54758516e884fc0ebdee6da4
 RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential cmake ninja-build pkg-config ca-certificates curl \
     protobuf-compiler protobuf-compiler-grpc libprotobuf-dev libgrpc++-dev \
@@ -11,8 +11,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Ubuntu 24.04's libpqxx 7.8.1 binary is built as C++17, while its public
 # headers expose a different ABI when consumed as C++20. Build the same pinned
-# release as C++20 so the library and MiniCloud agree on that ABI. The archive
-# checksum makes this network build input reproducible and tamper-evident.
+# dependency as C++20 so the library and MiniCloud agree on that ABI. Version
+# 7.9 also fixes the upstream feature-configuration bug. The archive checksum
+# makes this network build input reproducible and tamper-evident.
 RUN curl --fail --location --silent --show-error \
       "https://github.com/jtv/libpqxx/archive/refs/tags/${LIBPQXX_VERSION}.tar.gz" \
       --output /tmp/libpqxx.tar.gz \
@@ -30,6 +31,8 @@ RUN curl --fail --location --silent --show-error \
       -DSKIP_BUILD_TEST=ON \
   && cmake --build /tmp/libpqxx-build --parallel 2 \
   && cmake --install /tmp/libpqxx-build \
+  && install -D -m 0644 /tmp/libpqxx-source/COPYING \
+      /opt/libpqxx/share/licenses/libpqxx/COPYING \
   && rm -rf /tmp/libpqxx.tar.gz /tmp/libpqxx-source /tmp/libpqxx-build
 WORKDIR /src
 COPY CMakeLists.txt ./
@@ -43,6 +46,8 @@ RUN cmake -S . -B /build -G Ninja -DCMAKE_BUILD_TYPE=Release \
 
 FROM ubuntu:24.04 AS runtime
 ENV DEBIAN_FRONTEND=noninteractive
+COPY --from=build /opt/libpqxx/share/licenses/libpqxx/COPYING \
+  /usr/share/doc/libpqxx/copyright
 RUN apt-get update && apt-get install -y --no-install-recommends \
     ca-certificates curl libprotobuf-dev libgrpc++-dev libboost-system-dev \
     libpq5 libhiredis-dev libcurl4-openssl-dev \

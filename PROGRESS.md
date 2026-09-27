@@ -12,29 +12,28 @@ Last updated: 2026-09-27
   ownership checks, status, and log reporting.
 - [x] M4 — expiring Valkey service discovery and C++ reverse proxy.
 - [x] M5 — React operations console and Prometheus metrics.
-- [ ] M6 — full cross-platform release validation and distributable archive.
+- [x] M6 — full cross-platform release validation and distributable archive.
 
 ## Verification ledger
 
 | Check | Result | Notes |
 |---|---|---|
-| Portable C++ core tests | Passed | 13 tests compiled with local Apple Clang using strict warnings. |
+| Portable C++ core tests | Passed | All 13 tests pass with strict warnings on CI GCC, Clang, and MSVC. |
 | Portable core sanitizers | Passed | The same 13 tests passed with AddressSanitizer and UndefinedBehaviorSanitizer enabled. |
-| Repository contract | Passed | 113 source/document files: JSON, local documentation links, personal-path/credential patterns, and POSIX script syntax. |
+| Repository contract | Passed | 117 source/document files: JSON, local documentation links, personal-path/credential patterns, credentials, and POSIX script syntax. |
 | YAML and JSON parsing | Passed | CI, Dependabot, Compose, Prometheus, VS Code, dashboard, and vcpkg definitions parse locally. |
 | Credential bootstrap | Passed | POSIX bootstrap generated three 64-character secrets with owner-only permissions and refused overwrite. |
 | Echo workload smoke test | Passed | The example server answered `/health` and `/echo` on a loopback test port. |
 | Release archives | Passed | Source and information ZIPs were regenerated; archive inspection found no `.env`, Git metadata, build output, caches, dependencies, or logs. |
-| Static runtime compilation audit | Passed with test shim | Runtime source was checked with a temporary JSON interface shim; the real dependency build remains part of container CI. |
-| Full CMake dependency build | Pending | This host does not currently have CMake/gRPC/Protobuf/PostgreSQL/Valkey development packages. |
-| Dashboard production build | Pending | This host does not currently have Node/npm. |
-| Compose validation | Pending | This host does not currently have Docker. |
-| Real container end-to-end proof | Pending | Requires Docker Desktop/Engine; no paid service is required. |
-| Windows MSVC core test | Pending CI | Defined in GitHub Actions; must pass before v0.1 is tagged. |
-| Public GitHub Actions workflow | Pending push | The repository exists, but the first push and online run still require GitHub authentication to complete. |
+| Full CMake dependency build | Passed | The Ubuntu 24.04 Docker builder compiled every component with C++20 and ran both CTest suites. |
+| Dashboard production build | Passed | GitHub CI produced the React/TypeScript/Vite release bundle with Node.js 22. |
+| Compose validation | Passed | CI validated the Linux base model and Docker Desktop override. |
+| Real container end-to-end proof | Passed | CI started the entire stack, deployed two echo replicas, routed through the gateway, and exercised terminal-failure plus delayed-drain recovery. |
+| Windows release checks | Passed | Windows CI compiled/runs the portable core with MSVC and parses every checked-in PowerShell script. |
+| Public GitHub Actions workflow | Passed | The [public CI history](https://github.com/VenomHarshith/minicloud-platform/actions/workflows/ci.yml) provides reproducible online evidence. |
 
-The source-level milestones being complete does not mean the release is claimed
-as fully verified. M6 closes only after CI and the real Docker proof pass.
+M6 is closed. The supported full platform path remains Docker Desktop/Engine;
+native host dependencies are optional for component development.
 
 ## Original-project safety
 

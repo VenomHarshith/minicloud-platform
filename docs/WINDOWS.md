@@ -28,8 +28,8 @@ From the repository root:
 ```
 
 Generate credentials only for a fresh installation. Preserve `deploy/.env`
-while its PostgreSQL volume exists. If an older prerelease volume contains only
-schema version 1 or 2, use the PowerShell-compatible commands in
+while its PostgreSQL volume exists. If an older prerelease volume is below
+schema version 4, use the PowerShell-compatible commands in
 [OPERATIONS.md](OPERATIONS.md#upgrade-an-existing-prerelease-database) before
 starting the full platform.
 
@@ -63,12 +63,15 @@ access is equivalent to powerful host access.
 ## Native MSVC core build
 
 Install Visual Studio Build Tools with Desktop development with C++, CMake, Git,
-and vcpkg. In an x64 Native Tools PowerShell:
+and vcpkg. Native builds currently require libpqxx 7.9.x; CMake rejects
+libpqxx 8. The manifest does not pin a vcpkg registry baseline, so a fresh clone
+of vcpkg's current branch is not guaranteed to be compatible. Prefer the Docker
+workflow, or prepare a vcpkg checkout whose `libpqxx` port resolves to 7.9.x.
+Then, in an x64 Native Tools PowerShell:
 
 ```powershell
-git clone https://github.com/microsoft/vcpkg "$env:USERPROFILE\vcpkg"
-& "$env:USERPROFILE\vcpkg\bootstrap-vcpkg.bat"
-$env:VCPKG_ROOT = "$env:USERPROFILE\vcpkg"
+$env:VCPKG_ROOT = "C:\path\to\compatible-vcpkg-checkout"
+& "$env:VCPKG_ROOT\bootstrap-vcpkg.bat"
 
 cmake -S . -B build\windows -A x64 `
   -DCMAKE_TOOLCHAIN_FILE="$env:VCPKG_ROOT\scripts\buildsystems\vcpkg.cmake" `
@@ -77,8 +80,8 @@ cmake --build build\windows --config Debug
 ctest --test-dir build\windows -C Debug --output-on-failure
 ```
 
-This downloads free C++ packages listed in `vcpkg.json`. Docker builds do not
-require native Visual Studio or vcpkg.
+This downloads the free C++ packages listed in `vcpkg.json` from the selected
+vcpkg checkout. Docker builds do not require native Visual Studio or vcpkg.
 
 ## Resource settings
 

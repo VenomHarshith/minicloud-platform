@@ -49,7 +49,7 @@ std::vector<std::string> path_segments(const std::string& path) {
 }
 
 bool valid_service_name(const std::string& value) {
-  static const std::regex expression("^[a-z][a-z0-9-]{0,62}$");
+  static const std::regex expression("^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$");
   return std::regex_match(value, expression);
 }
 

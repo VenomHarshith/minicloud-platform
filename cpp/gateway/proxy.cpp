@@ -172,7 +172,7 @@ common::HttpResponse ReverseProxy::handle(const common::HttpRequest& request) {
   const std::string service = target.substr(
       prefix.size(), service_end == std::string::npos ? std::string::npos
                                                        : service_end - prefix.size());
-  static const std::regex service_name("^[a-z][a-z0-9-]{0,62}$");
+  static const std::regex service_name("^[a-z]([a-z0-9-]{0,61}[a-z0-9])?$");
   if (!std::regex_match(service, service_name)) {
     return gateway_error(request, http::status::bad_request, "invalid service name");
   }

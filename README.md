@@ -1,5 +1,7 @@
 # MiniCloud Platform
 
+[![CI](https://github.com/VenomHarshith/minicloud-platform/actions/workflows/ci.yml/badge.svg)](https://github.com/VenomHarshith/minicloud-platform/actions/workflows/ci.yml)
+
 MiniCloud is a real, zero-cost mini container platform for a trusted local
 machine. You submit a Docker image and desired replica count; its C++ control
 plane stores desired state, schedules replicas onto worker nodes, sends fenced
@@ -9,6 +11,10 @@ state in a React dashboard.
 
 This is a separate project from the earlier LocalPlane repository. LocalPlane is
 not replaced or removed.
+
+For one end-to-end explanation of the product, architecture, technologies,
+runtime flows, commands, troubleshooting, costs, and limitations, read the
+[complete project guide](docs/COMPLETE_PROJECT_GUIDE.md).
 
 ## What it does
 
@@ -106,7 +112,8 @@ Open:
 - Prometheus: <http://127.0.0.1:9090>
 
 `make demo` builds and deploys the included echo image with two replicas, waits
-for health and discovery, then sends a real request through the gateway.
+for health and discovery, sends a real request through the gateway, and exercises
+terminal-failure and delayed-drain recovery against the live control plane.
 
 Stop without deleting databases or metrics:
 
@@ -216,23 +223,27 @@ or Docker endpoint settings.
 - `information-pack/` — ordered index for the documentation-only ZIP.
 
 Start with [RUN_INSTRUCTIONS.md](RUN_INSTRUCTIONS.md), then use
-[docs/BUILD_AND_LEARN.md](docs/BUILD_AND_LEARN.md) as the what/why/when/how
-companion while reading the code.
+[docs/COMPLETE_PROJECT_GUIDE.md](docs/COMPLETE_PROJECT_GUIDE.md) for the full
+product and technology reference. [docs/BUILD_AND_LEARN.md](docs/BUILD_AND_LEARN.md)
+is the milestone-oriented what/why/when/how companion while reading the code.
 
 If you prefer a visual workflow, [docs/VSCODE.md](docs/VSCODE.md) maps the
 checked-in VS Code tasks to bootstrap, start, inspect, test, and stop operations.
 
 Create both a source ZIP and a documentation-only ZIP with `make package` on
 macOS/Linux or `.\scripts\windows\Package-Release.ps1` on Windows. Generated
-archives go to ignored `dist/` and never include `deploy/.env`.
-The macOS/Linux packaging shortcut additionally requires the host `zip` tool.
+archives go to ignored `dist/`. Both commands require Git and archive only the
+files tracked in the committed `HEAD`, so commit the intended release inputs
+first; ignored credentials, logs, dependency caches, and build output stay out.
+Tagged GitHub releases publish both archives plus `SHA256SUMS`; see
+[RELEASE_NOTES.md](RELEASE_NOTES.md) for their contents and verification scope.
 
 ## Clean-room and cost policy
 
 All implementation, names, diagrams, examples, and data in this repository are
 original or based only on public documentation. Do not add employer/customer
-source, private infrastructure details, credentials, logs, or proprietary
-designs. No Cisco information is included.
+source, private infrastructure details, credentials, logs, or other non-public
+material.
 
 The normal local path uses only free/open-source components and Docker Personal
 for eligible personal/educational use. A public always-on deployment needs a

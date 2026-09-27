@@ -108,6 +108,7 @@ void DomainModelsRejectInvalidIdentityAndResources() {
   });
   CHECK(minicloud::core::IsValidResourceId("worker-a1"));
   CHECK(!minicloud::core::IsValidResourceId("worker_a"));
+  CHECK(!minicloud::core::IsValidResourceId("worker-"));
 }
 
 void SchedulerIsIndependentOfInputOrderAndUsesLexicalTieBreak() {
@@ -267,7 +268,7 @@ void ReconcilerCreatesFencedStopWhenScalingDown() {
   CHECK(plan.commands()[0].spec_digest().empty());
 }
 
-void ReconcilerUsesNewRevisionToRecoverFailedWorkload() {
+void ReconcilerLeavesExhaustedWorkloadFailedUntilOperatorRestart() {
   const WorkloadSpec workload("api", 1, 1, SmallResources(), {},
                               std::nullopt, "sha256:v1");
   const Allocation failed = Assigned(
@@ -275,10 +276,16 @@ void ReconcilerUsesNewRevisionToRecoverFailedWorkload() {
       RuntimeState::kFailed, 1, 1, 5);
 
   const auto plan = Reconciler::Plan(workload, {failed}, 2);
-  CHECK(plan.allocation_changes().size() == 1);
-  CHECK(plan.allocation_changes()[0].desired().revision() == 6);
-  CHECK(plan.commands().size() == 1);
-  CHECK(plan.commands()[0].command_id() == "ensure:api-0:g1:r6:e2");
+  CHECK(plan.allocation_changes().empty());
+  CHECK(plan.commands().empty());
+
+  const WorkloadSpec restarted("api", 2, 1, SmallResources(), {},
+                               std::nullopt, "sha256:v1");
+  const auto restarted_plan = Reconciler::Plan(restarted, {failed}, 2);
+  CHECK(restarted_plan.allocation_changes().size() == 1);
+  CHECK(restarted_plan.allocation_changes()[0].desired().revision() == 6);
+  CHECK(restarted_plan.commands().size() == 1);
+  CHECK(restarted_plan.commands()[0].command_id() == "ensure:api-0:g2:r6:e2");
 }
 
 void LongWorkloadIdsProduceBoundedStableAllocationIds() {
@@ -317,7 +324,7 @@ int main() {
       {"reconcile converged", ReconcilerDoesNothingForConvergedAllocation},
       {"reconcile generation", ReconcilerBumpsRevisionForNewGeneration},
       {"reconcile scale down", ReconcilerCreatesFencedStopWhenScalingDown},
-      {"reconcile failed", ReconcilerUsesNewRevisionToRecoverFailedWorkload},
+      {"reconcile failed", ReconcilerLeavesExhaustedWorkloadFailedUntilOperatorRestart},
       {"bounded allocation ids", LongWorkloadIdsProduceBoundedStableAllocationIds},
       {"ambiguous snapshot", ReconcilerRejectsAmbiguousSnapshots},
   };

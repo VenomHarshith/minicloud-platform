@@ -140,7 +140,7 @@ void Repository::verify_schema() {
   pqxx::read_transaction transaction(implementation_->connection_);
   const auto result = transaction.exec(
       "SELECT version FROM schema_migrations ORDER BY version DESC LIMIT 1");
-  if (result.empty() || result.front()[0].as<int>() < 3) {
+  if (result.empty() || result.front()[0].as<int>() < 4) {
     throw std::runtime_error("database schema is missing; run database/migrations first");
   }
 }
@@ -289,7 +289,9 @@ NodeRecord Repository::register_node(const RegisterNodeInput& input) {
         "a.allocation_revision,s.name,s.image,s.cpu_millis,s.memory_mb,s.container_port,"
         "s.health_path,s.environment,s.placement,s.generation FROM allocations a "
         "JOIN services s ON s.service_id=a.service_id WHERE a.node_id=$1 "
-        "AND (a.desired_state='running' OR a.observed_state<>'stopped') "
+        "AND ((a.desired_state='running' AND (a.observed_state<>'failed' "
+        "OR a.service_generation<>s.generation)) OR "
+        "(a.desired_state='stopped' AND a.observed_state<>'stopped')) "
         "ORDER BY s.created_at,a.replica FOR UPDATE OF a",
         node_id);
     for (const auto& allocation : assigned) {
@@ -556,17 +558,29 @@ Repository::ReconcileResult Repository::reconcile(const std::int32_t heartbeat_t
                  "worker heartbeat expired", {{"name", node["name"].as<std::string>()}});
   }
   if (!expired.empty()) {
+    // A current stop command is a durable tombstone. Keep it claimable so the
+    // same worker process can finish a drain after a temporary partition.
+    // Other active commands target ownership that is about to be superseded.
     transaction.exec(
         "UPDATE commands c SET status='dead',last_error='assigned worker heartbeat expired',"
         "completed_at=now(),updated_at=now() FROM nodes n WHERE c.node_id=n.node_id "
-        "AND n.status='not_ready' AND c.status IN ('pending','retry','leased')");
+        "AND n.status='not_ready' AND c.status IN ('pending','retry','leased') "
+        "AND (c.kind<>'stop' OR NOT EXISTS (SELECT 1 FROM allocations a "
+        "WHERE a.allocation_id=c.allocation_id AND a.node_id=c.node_id "
+        "AND a.desired_state='stopped' AND a.service_generation=c.service_generation "
+        "AND a.allocation_revision=c.allocation_revision))");
+    // Consult the service's current replica count as well as allocation intent.
+    // The API may have committed scale-down just before this reconcile pass,
+    // while the allocation row still says running. Retaining that assignment
+    // lets the scale-down block below create a stop instead of losing its owner.
     transaction.exec(
         "UPDATE allocations a SET node_id=NULL,observed_state='lost',"
         "allocation_revision=allocation_revision+1,"
         "container_id=NULL,endpoint=NULL,"
         "last_error='assigned worker heartbeat expired',updated_at=now() "
-        "FROM nodes n WHERE a.node_id=n.node_id AND n.status='not_ready' "
-        "AND a.desired_state='running'");
+        "FROM nodes n,services s WHERE a.node_id=n.node_id "
+        "AND a.service_id=s.service_id AND n.status='not_ready' "
+        "AND a.desired_state='running' AND a.replica<s.desired_replicas");
   }
 
   const auto services = transaction.exec(
@@ -574,11 +588,15 @@ Repository::ReconcileResult Repository::reconcile(const std::int32_t heartbeat_t
   for (const auto& service : services) {
     const std::string service_id = service["service_id"].as<std::string>();
     const std::int32_t desired = service["desired_replicas"].as<std::int32_t>();
+    // Never reactivate a stable replica index until its previous stop cleared
+    // node ownership. This favors temporary unavailability over duplicate
+    // external side effects when scale-down and scale-up race with a partition.
     const auto reactivated = transaction.exec_params(
         "UPDATE allocations SET desired_state='running',observed_state='pending',node_id=NULL,"
         "service_generation=$3,allocation_revision=allocation_revision+1,container_id=NULL,"
         "endpoint=NULL,last_error=NULL,updated_at=now() WHERE service_id=$1 AND replica<$2 "
-        "AND desired_state='stopped' RETURNING allocation_id,replica",
+        "AND desired_state='stopped' AND node_id IS NULL AND observed_state='stopped' "
+        "RETURNING allocation_id,replica",
         service_id, desired, service["generation"].as<std::int64_t>());
     for (const auto& allocation : reactivated) {
       const std::string allocation_id = allocation["allocation_id"].as<std::string>();
@@ -628,9 +646,11 @@ Repository::ReconcileResult Repository::reconcile(const std::int32_t heartbeat_t
     }
   }
 
-  // A generation change or a terminal runtime failure is repaired on the same
-  // ready worker. Moving it without first stopping the old runtime can orphan a
-  // container; only loss of worker ownership makes an allocation unassigned.
+  // Generation changes and unexpected stopped/lost states are repaired on the
+  // same ready worker. A failed allocation has exhausted its worker restart
+  // policy and remains failed until an operator changes the service generation.
+  // Moving an allocation without first stopping the old runtime can orphan a
+  // container; only loss of worker ownership makes it unassigned.
   const auto repairs = transaction.exec(
       "SELECT a.allocation_id,a.service_id,a.replica,a.node_id,a.observed_state,"
       "a.service_generation,a.allocation_revision,s.name,s.image,s.cpu_millis,s.memory_mb,"
@@ -638,7 +658,7 @@ Repository::ReconcileResult Repository::reconcile(const std::int32_t heartbeat_t
       "FROM allocations a JOIN services s ON s.service_id=a.service_id "
       "JOIN nodes n ON n.node_id=a.node_id WHERE a.desired_state='running' "
       "AND n.status='ready' AND (a.service_generation<>s.generation "
-      "OR a.observed_state IN ('failed','unhealthy','stopped','lost')) "
+      "OR a.observed_state IN ('unhealthy','stopped','lost')) "
       "ORDER BY s.created_at,a.replica FOR UPDATE OF a");
   for (const auto& allocation : repairs) {
     const std::string allocation_id = allocation["allocation_id"].as<std::string>();

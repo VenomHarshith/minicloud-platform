@@ -15,7 +15,17 @@ compose() {
 }
 
 temporary_directory=$(mktemp -d "${TMPDIR:-/tmp}/minicloud-e2e.XXXXXX")
+worker_a_container=""
+worker_a_paused=0
+worker_b_container=""
+worker_b_paused=0
 cleanup() {
+  if [ "$worker_a_paused" -eq 1 ] && [ -n "$worker_a_container" ]; then
+    docker unpause "$worker_a_container" >/dev/null 2>&1 || true
+  fi
+  if [ "$worker_b_paused" -eq 1 ] && [ -n "$worker_b_container" ]; then
+    docker unpause "$worker_b_container" >/dev/null 2>&1 || true
+  fi
   rm -rf "$temporary_directory"
 }
 trap cleanup EXIT HUP INT TERM
@@ -49,6 +59,15 @@ if [ "$status" != "201" ] && [ "$status" != "409" ]; then
   exit 1
 fi
 
+# Make reruns converge even when a previous interrupted proof left the retained
+# service drained. Scaling an already-two-replica service is harmless.
+curl -fsS -X POST http://127.0.0.1:8090/api/v1/services/echo-api/scale \
+  -H "Authorization: Bearer $api_token" \
+  -H 'content-type: application/json' \
+  --data-binary '{"replicas":2}' >/dev/null
+curl -fsS -X POST http://127.0.0.1:8090/api/v1/services/echo-api/restart \
+  -H "Authorization: Bearer $api_token" >/dev/null
+
 attempt=0
 until curl -fsS http://127.0.0.1:8080/services/echo-api/ >"$temporary_directory/echo-response.json" 2>/dev/null; do
   attempt=$((attempt + 1))
@@ -62,6 +81,171 @@ done
 
 cat "$temporary_directory/echo-response.json"
 printf '\n'
+
+# Regression: the controller must preserve the durable terminal state produced
+# by an accepted worker report until an explicit operator restart changes
+# service generation. Set that state directly to isolate repository
+# reconciliation, while a paused worker prevents unrelated status updates.
+worker_b_container=$(compose "$@" ps -q worker-b)
+if [ -z "$worker_b_container" ]; then
+  echo "worker-b container was not found" >&2
+  exit 1
+fi
+docker pause "$worker_b_container" >/dev/null
+worker_b_paused=1
+
+failed_row=$(compose "$@" exec -T postgres psql -X -At \
+  -v ON_ERROR_STOP=1 -U minicloud -d minicloud -c \
+  "SELECT a.allocation_id::text || '|' || a.allocation_revision::text || '|' || a.service_generation::text FROM allocations a JOIN services s ON s.service_id=a.service_id JOIN nodes n ON n.node_id=a.node_id WHERE s.name='echo-api' AND n.name='worker-b' AND a.desired_state='running' ORDER BY a.replica LIMIT 1;")
+case "$failed_row" in
+  *'|'*'|'*) ;;
+  *)
+    echo "failed to select an allocation on worker-b" >&2
+    exit 1
+    ;;
+esac
+failed_allocation=${failed_row%%|*}
+failed_fences=${failed_row#*|}
+failed_revision=${failed_fences%%|*}
+failed_generation=${failed_fences#*|}
+
+compose "$@" exec -T postgres psql -X -q \
+  -v ON_ERROR_STOP=1 -U minicloud -d minicloud -c \
+  "UPDATE allocations SET observed_state='failed',restart_count=5,last_error='injected terminal failure for E2E',updated_at=now() WHERE allocation_id='$failed_allocation';"
+
+sleep 3
+stable_failure=$(compose "$@" exec -T postgres psql -X -At \
+  -v ON_ERROR_STOP=1 -U minicloud -d minicloud -c \
+  "SELECT COUNT(*) FROM allocations a WHERE a.allocation_id='$failed_allocation' AND a.observed_state='failed' AND a.allocation_revision=$failed_revision AND a.service_generation=$failed_generation;")
+if [ "$stable_failure" -ne 1 ]; then
+  compose "$@" logs --tail=250
+  echo "controller reset a terminal failure without an operator restart" >&2
+  exit 1
+fi
+
+curl -fsS -X POST http://127.0.0.1:8090/api/v1/services/echo-api/restart \
+  -H "Authorization: Bearer $api_token" >/dev/null
+
+attempt=0
+while :; do
+  deliberate_recovery=$(compose "$@" exec -T postgres psql -X -At \
+    -v ON_ERROR_STOP=1 -U minicloud -d minicloud -c \
+    "SELECT COUNT(*) FROM allocations a WHERE a.allocation_id='$failed_allocation' AND a.observed_state='pending' AND a.allocation_revision>$failed_revision AND a.service_generation>$failed_generation;")
+  if [ "$deliberate_recovery" -eq 1 ]; then
+    break
+  fi
+  attempt=$((attempt + 1))
+  if [ "$attempt" -ge 6 ]; then
+    compose "$@" logs --tail=250
+    echo "operator restart did not advance the failed allocation" >&2
+    exit 1
+  fi
+  sleep 1
+done
+
+docker unpause "$worker_b_container" >/dev/null
+worker_b_paused=0
+
+attempt=0
+while :; do
+  ready_after_restart=$(compose "$@" exec -T postgres psql -X -At \
+    -v ON_ERROR_STOP=1 -U minicloud -d minicloud -c \
+    "SELECT COUNT(*) FROM allocations a JOIN services s ON s.service_id=a.service_id WHERE s.name='echo-api' AND a.desired_state='running' AND a.observed_state='running' AND a.endpoint IS NOT NULL;")
+  if [ "$ready_after_restart" -eq 2 ]; then
+    break
+  fi
+  attempt=$((attempt + 1))
+  if [ "$attempt" -ge 90 ]; then
+    compose "$@" logs --tail=250
+    echo "explicit restart did not recover both echo replicas" >&2
+    exit 1
+  fi
+  sleep 1
+done
+
+# Regression: a drain requested while a worker process is unavailable must
+# preserve the exact stop command. A rapid scale-up must wait for that stop to
+# complete instead of creating a duplicate runtime on another worker.
+attempt=0
+while :; do
+  worker_a_ready=$(compose "$@" exec -T postgres psql -X -At \
+    -v ON_ERROR_STOP=1 -U minicloud -d minicloud -c \
+    "SELECT COUNT(*) FROM allocations a JOIN services s ON s.service_id=a.service_id JOIN nodes n ON n.node_id=a.node_id WHERE s.name='echo-api' AND n.name='worker-a' AND a.desired_state='running' AND a.observed_state='running';")
+  if [ "$worker_a_ready" -ge 1 ]; then
+    break
+  fi
+  attempt=$((attempt + 1))
+  if [ "$attempt" -ge 60 ]; then
+    compose "$@" logs --tail=250
+    echo "echo allocation did not become ready on worker-a" >&2
+    exit 1
+  fi
+  sleep 1
+done
+
+worker_a_container=$(compose "$@" ps -q worker-a)
+if [ -z "$worker_a_container" ]; then
+  echo "worker-a container was not found" >&2
+  exit 1
+fi
+docker pause "$worker_a_container" >/dev/null
+worker_a_paused=1
+
+curl -fsS -X DELETE http://127.0.0.1:8090/api/v1/services/echo-api \
+  -H "Authorization: Bearer $api_token" >/dev/null
+
+attempt=0
+while :; do
+  durable_stop=$(compose "$@" exec -T postgres psql -X -At \
+    -v ON_ERROR_STOP=1 -U minicloud -d minicloud -c \
+    "SELECT COUNT(*) FROM allocations a JOIN services s ON s.service_id=a.service_id JOIN nodes n ON n.node_id=a.node_id JOIN commands c ON c.allocation_id=a.allocation_id AND c.node_id=a.node_id WHERE s.name='echo-api' AND n.name='worker-a' AND n.status='not_ready' AND a.desired_state='stopped' AND a.observed_state='stopping' AND c.kind='stop' AND c.status IN ('pending','retry','leased') AND c.service_generation=a.service_generation AND c.allocation_revision=a.allocation_revision;")
+  if [ "$durable_stop" -ge 1 ]; then
+    break
+  fi
+  attempt=$((attempt + 1))
+  if [ "$attempt" -ge 30 ]; then
+    compose "$@" logs --tail=250
+    echo "drain stop command did not survive worker expiry" >&2
+    exit 1
+  fi
+  sleep 1
+done
+
+curl -fsS -X POST http://127.0.0.1:8090/api/v1/services/echo-api/scale \
+  -H "Authorization: Bearer $api_token" \
+  -H 'content-type: application/json' \
+  --data-binary '{"replicas":2}' >/dev/null
+sleep 2
+
+blocked_reactivation=$(compose "$@" exec -T postgres psql -X -At \
+  -v ON_ERROR_STOP=1 -U minicloud -d minicloud -c \
+  "SELECT COUNT(*) FROM allocations a JOIN services s ON s.service_id=a.service_id JOIN nodes n ON n.node_id=a.node_id JOIN commands c ON c.allocation_id=a.allocation_id AND c.node_id=a.node_id WHERE s.name='echo-api' AND n.name='worker-a' AND a.desired_state='stopped' AND a.observed_state='stopping' AND c.kind='stop' AND c.status IN ('pending','retry','leased') AND c.service_generation=a.service_generation AND c.allocation_revision=a.allocation_revision;")
+if [ "$blocked_reactivation" -lt 1 ]; then
+  compose "$@" logs --tail=250
+  echo "scale-up superseded an unacknowledged drain" >&2
+  exit 1
+fi
+
+docker unpause "$worker_a_container" >/dev/null
+worker_a_paused=0
+
+attempt=0
+while :; do
+  ready_replicas=$(compose "$@" exec -T postgres psql -X -At \
+    -v ON_ERROR_STOP=1 -U minicloud -d minicloud -c \
+    "SELECT COUNT(*) FROM allocations a JOIN services s ON s.service_id=a.service_id WHERE s.name='echo-api' AND a.desired_state='running' AND a.observed_state='running' AND a.endpoint IS NOT NULL;")
+  if [ "$ready_replicas" -eq 2 ]; then
+    break
+  fi
+  attempt=$((attempt + 1))
+  if [ "$attempt" -ge 90 ]; then
+    compose "$@" logs --tail=250
+    echo "drained allocation did not stop and reactivate after worker recovery" >&2
+    exit 1
+  fi
+  sleep 1
+done
+
 curl -fsS http://127.0.0.1:8090/api/v1/snapshot \
   -H "Authorization: Bearer $api_token"
 printf '\n'

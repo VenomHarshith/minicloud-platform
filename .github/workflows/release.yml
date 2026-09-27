@@ -1,0 +1,66 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    name: Package and publish release
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Validate repository contract
+        run: python3 scripts/check_repository.py
+
+      - name: Build source and information archives
+        run: ./scripts/package-release.sh
+
+      - name: Validate tag and archive version contract
+        shell: bash
+        run: |
+          if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "release tag must use vMAJOR.MINOR.PATCH" >&2
+            exit 1
+          fi
+          version="${GITHUB_REF_NAME#v}"
+          test -f "dist/minicloud-platform-$version-source.zip"
+          test -f "dist/minicloud-information-pack-$version.zip"
+          grep -Fqx "# MiniCloud $GITHUB_REF_NAME" RELEASE_NOTES.md
+          grep -Fq "minicloud-platform-$version-source.zip" RELEASE_NOTES.md
+          grep -Fq "minicloud-information-pack-$version.zip" RELEASE_NOTES.md
+
+      - name: Create archive checksums
+        working-directory: dist
+        run: sha256sum *.zip > SHA256SUMS
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" dist/*.zip dist/SHA256SUMS --clobber
+            gh release edit "$GITHUB_REF_NAME" \
+              --verify-tag \
+              --title "MiniCloud $GITHUB_REF_NAME" \
+              --notes-file RELEASE_NOTES.md
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              dist/*.zip dist/SHA256SUMS \
+              --verify-tag \
+              --title "MiniCloud $GITHUB_REF_NAME" \
+              --notes-file RELEASE_NOTES.md
+          fi

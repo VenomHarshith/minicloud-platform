@@ -104,8 +104,10 @@ DELETE /api/v1/services/{name}
 Authorization: Bearer TOKEN
 ```
 
-Deletion is safe scale-to-zero/drain. The service record and events remain for
-inspection in v0.1.
+Deletion requests an asynchronous scale-to-zero/drain. The service record and
+events remain for inspection in v0.1. A container on an unavailable remote
+worker may remain until that worker returns or the remote daemon is cleaned;
+the supported local stop scripts clean owned containers on the shared daemon.
 
 ## Allocation logs
 

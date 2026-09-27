@@ -8,12 +8,12 @@ credentials or runtime data.
 
 ## Release gates
 
-- [ ] GCC/Clang/MSVC portable core builds and tests pass in CI.
-- [ ] Full dependency CMake build and runtime tests pass in the Docker builder.
-- [ ] React/TypeScript production build passes.
-- [ ] Compose configuration validates with generated credentials.
-- [ ] Ubuntu CI completes the real Docker deploy/health/discovery/gateway proof.
-- [ ] Windows PowerShell scripts parse and the MSVC core test passes.
+- [x] GCC/Clang/MSVC portable core builds and tests pass in CI.
+- [x] Full dependency CMake build and runtime tests pass in the Docker builder.
+- [x] React/TypeScript production build passes.
+- [x] Compose configuration validates with generated credentials.
+- [x] Ubuntu CI completes the real Docker deploy/health/discovery/gateway proof.
+- [x] Windows PowerShell scripts parse and the MSVC core test passes.
 - [x] Documentation links and commands are audited locally.
 - [x] Source and information archives exclude `.env`, databases, logs, build
   output, dependency caches, and Git metadata.
@@ -37,8 +37,10 @@ credentials or runtime data.
 
 ## Current status
 
-Implementation is present. This milestone remains open until dependency builds
-and the real Docker end-to-end job pass. See `PROGRESS.md` for the live ledger.
+Complete. The public workflow validates all portable compiler jobs, the
+dashboard, both Compose models, the full dependency build, runtime tests, and a
+real workload through the gateway. See `PROGRESS.md` for the verification
+ledger and the public Actions link.
 
 ## Practical lesson
 

@@ -18,7 +18,7 @@ unfinished clone of a much larger product.
 - The controller decides desired state; workers own local side effects.
 - Every cross-process action is retryable, idempotent, and fenced.
 - All default listeners are local-only; the Docker socket is trusted authority.
-- The full local stack uses free/open-source components and no Cisco material.
+- The full local stack uses free/open-source components and synthetic examples.
 - Windows support means Docker Desktop Linux containers plus native MSVC proof
   for the portable algorithmic core.
 
