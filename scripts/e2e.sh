@@ -15,16 +15,18 @@ compose() {
 }
 
 temporary_directory=$(mktemp -d "${TMPDIR:-/tmp}/minicloud-e2e.XXXXXX")
-worker_a_container=""
-worker_a_paused=0
-worker_b_container=""
-worker_b_paused=0
+failure_worker=""
+failure_worker_container=""
+failure_worker_paused=0
+drain_worker=""
+drain_worker_container=""
+drain_worker_paused=0
 cleanup() {
-  if [ "$worker_a_paused" -eq 1 ] && [ -n "$worker_a_container" ]; then
-    docker unpause "$worker_a_container" >/dev/null 2>&1 || true
+  if [ "$failure_worker_paused" -eq 1 ] && [ -n "$failure_worker_container" ]; then
+    docker unpause "$failure_worker_container" >/dev/null 2>&1 || true
   fi
-  if [ "$worker_b_paused" -eq 1 ] && [ -n "$worker_b_container" ]; then
-    docker unpause "$worker_b_container" >/dev/null 2>&1 || true
+  if [ "$drain_worker_paused" -eq 1 ] && [ -n "$drain_worker_container" ]; then
+    docker unpause "$drain_worker_container" >/dev/null 2>&1 || true
   fi
   rm -rf "$temporary_directory"
 }
@@ -86,21 +88,32 @@ printf '\n'
 # by an accepted worker report until an explicit operator restart changes
 # service generation. Set that state directly to isolate repository
 # reconciliation, while a paused worker prevents unrelated status updates.
-worker_b_container=$(compose "$@" ps -q worker-b)
-if [ -z "$worker_b_container" ]; then
-  echo "worker-b container was not found" >&2
+failure_worker=$(compose "$@" exec -T postgres psql -X -At \
+  -v ON_ERROR_STOP=1 -U minicloud -d minicloud -c \
+  "SELECT n.name FROM allocations a JOIN services s ON s.service_id=a.service_id JOIN nodes n ON n.node_id=a.node_id WHERE s.name='echo-api' AND a.desired_state='running' AND a.observed_state='running' AND a.endpoint IS NOT NULL AND n.status='ready' AND n.name IN ('worker-a','worker-b') ORDER BY n.name,a.replica LIMIT 1;")
+case "$failure_worker" in
+  worker-a|worker-b) ;;
+  *)
+    echo "failed to select a ready echo allocation owner" >&2
+    exit 1
+    ;;
+esac
+
+failure_worker_container=$(compose "$@" ps -q "$failure_worker")
+if [ -z "$failure_worker_container" ]; then
+  echo "$failure_worker container was not found" >&2
   exit 1
 fi
-docker pause "$worker_b_container" >/dev/null
-worker_b_paused=1
+docker pause "$failure_worker_container" >/dev/null
+failure_worker_paused=1
 
 failed_row=$(compose "$@" exec -T postgres psql -X -At \
   -v ON_ERROR_STOP=1 -U minicloud -d minicloud -c \
-  "SELECT a.allocation_id::text || '|' || a.allocation_revision::text || '|' || a.service_generation::text FROM allocations a JOIN services s ON s.service_id=a.service_id JOIN nodes n ON n.node_id=a.node_id WHERE s.name='echo-api' AND n.name='worker-b' AND a.desired_state='running' ORDER BY a.replica LIMIT 1;")
+  "SELECT a.allocation_id::text || '|' || a.allocation_revision::text || '|' || a.service_generation::text FROM allocations a JOIN services s ON s.service_id=a.service_id JOIN nodes n ON n.node_id=a.node_id WHERE s.name='echo-api' AND n.name='$failure_worker' AND a.desired_state='running' ORDER BY a.replica LIMIT 1;")
 case "$failed_row" in
   *'|'*'|'*) ;;
   *)
-    echo "failed to select an allocation on worker-b" >&2
+    echo "failed to select an allocation on $failure_worker" >&2
     exit 1
     ;;
 esac
@@ -143,8 +156,8 @@ while :; do
   sleep 1
 done
 
-docker unpause "$worker_b_container" >/dev/null
-worker_b_paused=0
+docker unpause "$failure_worker_container" >/dev/null
+failure_worker_paused=0
 
 attempt=0
 while :; do
@@ -166,30 +179,25 @@ done
 # Regression: a drain requested while a worker process is unavailable must
 # preserve the exact stop command. A rapid scale-up must wait for that stop to
 # complete instead of creating a duplicate runtime on another worker.
-attempt=0
-while :; do
-  worker_a_ready=$(compose "$@" exec -T postgres psql -X -At \
-    -v ON_ERROR_STOP=1 -U minicloud -d minicloud -c \
-    "SELECT COUNT(*) FROM allocations a JOIN services s ON s.service_id=a.service_id JOIN nodes n ON n.node_id=a.node_id WHERE s.name='echo-api' AND n.name='worker-a' AND a.desired_state='running' AND a.observed_state='running';")
-  if [ "$worker_a_ready" -ge 1 ]; then
-    break
-  fi
-  attempt=$((attempt + 1))
-  if [ "$attempt" -ge 60 ]; then
+drain_worker=$(compose "$@" exec -T postgres psql -X -At \
+  -v ON_ERROR_STOP=1 -U minicloud -d minicloud -c \
+  "SELECT n.name FROM allocations a JOIN services s ON s.service_id=a.service_id JOIN nodes n ON n.node_id=a.node_id WHERE s.name='echo-api' AND a.desired_state='running' AND a.observed_state='running' AND a.endpoint IS NOT NULL AND n.status='ready' AND n.name IN ('worker-a','worker-b') ORDER BY n.name,a.replica LIMIT 1;")
+case "$drain_worker" in
+  worker-a|worker-b) ;;
+  *)
     compose "$@" logs --tail=250
-    echo "echo allocation did not become ready on worker-a" >&2
+    echo "failed to select a ready echo allocation owner for the drain proof" >&2
     exit 1
-  fi
-  sleep 1
-done
+    ;;
+esac
 
-worker_a_container=$(compose "$@" ps -q worker-a)
-if [ -z "$worker_a_container" ]; then
-  echo "worker-a container was not found" >&2
+drain_worker_container=$(compose "$@" ps -q "$drain_worker")
+if [ -z "$drain_worker_container" ]; then
+  echo "$drain_worker container was not found" >&2
   exit 1
 fi
-docker pause "$worker_a_container" >/dev/null
-worker_a_paused=1
+docker pause "$drain_worker_container" >/dev/null
+drain_worker_paused=1
 
 curl -fsS -X DELETE http://127.0.0.1:8090/api/v1/services/echo-api \
   -H "Authorization: Bearer $api_token" >/dev/null
@@ -198,7 +206,7 @@ attempt=0
 while :; do
   durable_stop=$(compose "$@" exec -T postgres psql -X -At \
     -v ON_ERROR_STOP=1 -U minicloud -d minicloud -c \
-    "SELECT COUNT(*) FROM allocations a JOIN services s ON s.service_id=a.service_id JOIN nodes n ON n.node_id=a.node_id JOIN commands c ON c.allocation_id=a.allocation_id AND c.node_id=a.node_id WHERE s.name='echo-api' AND n.name='worker-a' AND n.status='not_ready' AND a.desired_state='stopped' AND a.observed_state='stopping' AND c.kind='stop' AND c.status IN ('pending','retry','leased') AND c.service_generation=a.service_generation AND c.allocation_revision=a.allocation_revision;")
+    "SELECT COUNT(*) FROM allocations a JOIN services s ON s.service_id=a.service_id JOIN nodes n ON n.node_id=a.node_id JOIN commands c ON c.allocation_id=a.allocation_id AND c.node_id=a.node_id WHERE s.name='echo-api' AND n.name='$drain_worker' AND n.status='not_ready' AND a.desired_state='stopped' AND a.observed_state='stopping' AND c.kind='stop' AND c.status IN ('pending','retry','leased') AND c.service_generation=a.service_generation AND c.allocation_revision=a.allocation_revision;")
   if [ "$durable_stop" -ge 1 ]; then
     break
   fi
@@ -219,15 +227,15 @@ sleep 2
 
 blocked_reactivation=$(compose "$@" exec -T postgres psql -X -At \
   -v ON_ERROR_STOP=1 -U minicloud -d minicloud -c \
-  "SELECT COUNT(*) FROM allocations a JOIN services s ON s.service_id=a.service_id JOIN nodes n ON n.node_id=a.node_id JOIN commands c ON c.allocation_id=a.allocation_id AND c.node_id=a.node_id WHERE s.name='echo-api' AND n.name='worker-a' AND a.desired_state='stopped' AND a.observed_state='stopping' AND c.kind='stop' AND c.status IN ('pending','retry','leased') AND c.service_generation=a.service_generation AND c.allocation_revision=a.allocation_revision;")
+  "SELECT COUNT(*) FROM allocations a JOIN services s ON s.service_id=a.service_id JOIN nodes n ON n.node_id=a.node_id JOIN commands c ON c.allocation_id=a.allocation_id AND c.node_id=a.node_id WHERE s.name='echo-api' AND n.name='$drain_worker' AND a.desired_state='stopped' AND a.observed_state='stopping' AND c.kind='stop' AND c.status IN ('pending','retry','leased') AND c.service_generation=a.service_generation AND c.allocation_revision=a.allocation_revision;")
 if [ "$blocked_reactivation" -lt 1 ]; then
   compose "$@" logs --tail=250
   echo "scale-up superseded an unacknowledged drain" >&2
   exit 1
 fi
 
-docker unpause "$worker_a_container" >/dev/null
-worker_a_paused=0
+docker unpause "$drain_worker_container" >/dev/null
+drain_worker_paused=0
 
 attempt=0
 while :; do

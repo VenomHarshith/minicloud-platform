@@ -31,6 +31,12 @@ All notable changes to MiniCloud are recorded here.
 - Controller, gateway, gRPC, Prometheus, PostgreSQL, Valkey, Docker endpoints,
   logs, and administrative actions remain outside the public tunnel.
 
+### Fixed
+
+- The full Docker end-to-end proof now selects the worker that actually owns a
+  ready allocation before failure injection and drain testing. This removes a
+  placement race without weakening the durable-state or recovery assertions.
+
 ### Known limits
 
 - Cloudflare Quick Tunnel is temporary testing infrastructure with a random
