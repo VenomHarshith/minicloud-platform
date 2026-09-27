@@ -6,6 +6,11 @@ VS Code users can run the same checked-in commands from **Terminal → Run Task*
 the ordered workflow and what each task does are in
 [docs/VSCODE.md](docs/VSCODE.md).
 
+Starting from a different Windows laptop? Follow
+[docs/CONTINUE_ON_WINDOWS.md](docs/CONTINUE_ON_WINDOWS.md) first. It covers
+installation, HTTPS/Git Credential Manager authentication, fresh local secrets,
+branching, testing, pushing, and keeping multiple laptops synchronized.
+
 This file starts the private administrative dashboard. To share a live
 read-only URL, follow [docs/PUBLIC_OBSERVER.md](docs/PUBLIC_OBSERVER.md) instead.
 Never place the normal dashboard behind a public tunnel.

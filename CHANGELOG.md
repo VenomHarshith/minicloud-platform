@@ -16,6 +16,9 @@ All notable changes to MiniCloud are recorded here.
 - Cross-platform public start, verification, shutdown, cost, OCI, security,
   and learning guidance in `docs/PUBLIC_OBSERVER.md`.
 - Unit coverage for the public snapshot sanitization contract.
+- A from-scratch Windows continuation guide covering HTTPS/Git Credential
+  Manager authentication, Docker Desktop/WSL 2 setup, fresh local credentials,
+  branch/PR workflow, multi-laptop synchronization, and secret hygiene.
 
 ### Security
 

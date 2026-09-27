@@ -86,7 +86,9 @@ Use Docker Desktop in **Linux containers** mode:
 ```
 
 See [docs/WINDOWS.md](docs/WINDOWS.md) for WSL 2, socket, native C++, and
-troubleshooting details.
+troubleshooting details. To clone, authenticate, run, change, and safely push
+the project from a different Windows laptop, follow
+[docs/CONTINUE_ON_WINDOWS.md](docs/CONTINUE_ON_WINDOWS.md).
 
 ### macOS with Docker Desktop
 
@@ -246,6 +248,8 @@ Start with [RUN_INSTRUCTIONS.md](RUN_INSTRUCTIONS.md), then use
 [docs/COMPLETE_PROJECT_GUIDE.md](docs/COMPLETE_PROJECT_GUIDE.md) for the full
 product and technology reference. [docs/BUILD_AND_LEARN.md](docs/BUILD_AND_LEARN.md)
 is the milestone-oriented what/why/when/how companion while reading the code.
+For a fresh Windows development machine and the complete GitHub branch/push
+workflow, use [docs/CONTINUE_ON_WINDOWS.md](docs/CONTINUE_ON_WINDOWS.md).
 
 If you prefer a visual workflow, [docs/VSCODE.md](docs/VSCODE.md) maps the
 checked-in VS Code tasks to bootstrap, start, inspect, test, and stop operations.

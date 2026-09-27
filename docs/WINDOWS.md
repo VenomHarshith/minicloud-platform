@@ -6,6 +6,12 @@ Use Windows 11, Docker Desktop with WSL 2, and Linux containers. This runs the
 same Linux workload images and Compose definition used on macOS/Linux while all
 operator commands remain PowerShell-native.
 
+For a brand-new laptop, begin with
+[CONTINUE_ON_WINDOWS.md](CONTINUE_ON_WINDOWS.md). It includes Git for Windows,
+personal GitHub/Git Credential Manager authentication, cloning, machine-local
+secret initialization, the daily branch/push workflow, and multi-laptop sync.
+Return here for platform-specific runtime and native-build details.
+
 Verify Docker before starting:
 
 ```powershell

@@ -11,13 +11,15 @@ documentation-only ZIP, so the explanations do not drift into duplicate copies.
    technology, operation, troubleshooting, cost, and limitation reference.
 2. `README.md` — product purpose, capabilities, architecture, and boundaries.
 3. `RUN_INSTRUCTIONS.md` — exact Windows/macOS/Linux operating procedure.
-4. `docs/PUBLIC_OBSERVER.md` — safe live sharing, exact commands, security,
+4. `docs/CONTINUE_ON_WINDOWS.md` — start from a different Windows laptop,
+   authenticate safely, run/test, branch, push, and synchronize changes.
+5. `docs/PUBLIC_OBSERVER.md` — safe live sharing, exact commands, security,
    Windows, OCI/cost limits, and public-deployment learning concepts.
-5. `RELEASE_NOTES.md` — download contents, verification, and hosting boundary.
-6. `MILESTONES.md` — ordered build stages.
-7. `PROGRESS.md` — implementation and verification ledger.
-8. `docs/BUILD_AND_LEARN.md` — what, why, when, and how for every technology.
-9. `SECURITY.md` and `CONTRIBUTING.md` — safe operation and extension rules.
+6. `RELEASE_NOTES.md` — download contents, verification, and hosting boundary.
+7. `MILESTONES.md` — ordered build stages.
+8. `PROGRESS.md` — implementation and verification ledger.
+9. `docs/BUILD_AND_LEARN.md` — what, why, when, and how for every technology.
+10. `SECURITY.md` and `CONTRIBUTING.md` — safe operation and extension rules.
 
 ## Deep design
 
@@ -31,12 +33,13 @@ documentation-only ZIP, so the explanations do not drift into duplicate copies.
 ## Operate and troubleshoot
 
 1. `docs/WINDOWS.md`
-2. `docs/VSCODE.md`
-3. `docs/OPERATIONS.md`
-4. `docs/DEPENDENCIES.md`
-5. `docs/ONLINE_DEPLOYMENT.md`
-6. `docs/PUBLIC_OBSERVER.md`
-7. `docs/CLEAN_ROOM.md`
+2. `docs/CONTINUE_ON_WINDOWS.md`
+3. `docs/VSCODE.md`
+4. `docs/OPERATIONS.md`
+5. `docs/DEPENDENCIES.md`
+6. `docs/ONLINE_DEPLOYMENT.md`
+7. `docs/PUBLIC_OBSERVER.md`
+8. `docs/CLEAN_ROOM.md`
 
 ## Follow the implementation
 

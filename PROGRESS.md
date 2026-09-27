@@ -29,6 +29,14 @@ action, and its URL is temporary rather than a stable deployment. Every tunnel
 session must repeat the checks in
 [docs/PUBLIC_OBSERVER.md](docs/PUBLIC_OBSERVER.md) before the link is shared.
 
+## Continuation readiness
+
+- [x] A from-scratch Windows guide now covers personal GitHub authentication
+  through HTTPS/Git Credential Manager, repository-local no-reply identity,
+  fresh machine-local secrets, Docker Desktop/WSL 2 validation, feature
+  branches, testing, pull requests, multi-laptop synchronization, line endings,
+  and credential-safe troubleshooting.
+
 ## Verification ledger
 
 | Check | Result | Notes |
@@ -49,6 +57,7 @@ session must repeat the checks in
 | Public snapshot sanitization | Passed | The focused unit proof rejects representative secrets, raw IDs, endpoints, errors, event payloads, and private labels. |
 | Public local edge boundary | Passed | The observer page and live snapshot return successfully while the mutation path is blocked before the controller. |
 | Temporary internet URL | Prepared; per session | Quick Tunnel has a random hostname and no uptime guarantee; launch requires explicit operator approval and verification instead of treating one URL as a release artifact. |
+| Fresh Windows continuation path | Documented | Clone/auth/run/change/test/push and multi-laptop sync are covered without copying a deploy key or local secrets. |
 
 M6 is closed. The supported full platform path remains Docker Desktop/Engine;
 native host dependencies are optional for component development.
