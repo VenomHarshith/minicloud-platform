@@ -422,10 +422,11 @@ CommandCompletion Repository::complete_command(
   }
   const std::string status = success ? "succeeded" : (retryable ? "retry" : "dead");
   const auto rows = transaction.exec_params(
-      "UPDATE commands SET status=$4,last_error=NULLIF($5,''),"
-      "available_at=CASE WHEN $4='retry' THEN now()+LEAST(interval '30 seconds',"
+      "UPDATE commands SET status=$4::varchar,last_error=NULLIF($5,''),"
+      "available_at=CASE WHEN $4::varchar='retry' THEN now()+LEAST(interval '30 seconds',"
       "make_interval(secs=>power(2,LEAST(attempt_count,5))::int)) ELSE available_at END,"
-      "completed_at=CASE WHEN $4 IN ('succeeded','dead') THEN now() ELSE NULL END,updated_at=now() "
+      "completed_at=CASE WHEN $4::varchar IN ('succeeded','dead') THEN now() ELSE NULL END,"
+      "updated_at=now() "
       "WHERE command_id=$1 AND node_id=$2 AND status='leased' AND lease_token=$3::uuid "
       "AND lease_owner=$6::uuid RETURNING allocation_id,kind,service_generation,allocation_revision",
       command_id, node_id, lease_token, status, error.substr(0, 2048), instance_id);
