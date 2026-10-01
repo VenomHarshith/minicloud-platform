@@ -8,7 +8,7 @@ ARG VITE_PUBLIC_DEMO=false
 ENV VITE_PUBLIC_DEMO=${VITE_PUBLIC_DEMO}
 RUN npm run build
 
-FROM nginx:1.29-alpine
+FROM nginx:1.31-alpine
 ARG NGINX_CONFIG=nginx.conf
 COPY ${NGINX_CONFIG} /etc/nginx/templates/default.conf.template
 COPY --from=build /app/dist /usr/share/nginx/html
